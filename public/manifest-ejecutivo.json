@@ -1,0 +1,17 @@
+{
+  "id": "/ejecutivo",
+  "name": "AgroPulse Ejecutivo",
+  "short_name": "AgroPulse Exec",
+  "description": "Panel gerencial en vivo — producción, EBITDA y alertas de las unidades de JHS Agroindustria.",
+  "start_url": "/ejecutivo",
+  "scope": "/ejecutivo",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#f5f2ec",
+  "theme_color": "#ef7d1e",
+  "icons": [
+    { "src": "/icons/ejecutivo-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/ejecutivo-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/ejecutivo-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
