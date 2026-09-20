@@ -33,10 +33,7 @@ export default function LoginForm() {
       <div className="w-full max-w-sm rounded-2xl bg-panel p-8 shadow-2xl">
         <div className="mb-6 flex flex-col items-center">
           <Image src="/brand/logo_agropulse.png" alt="AgroPulse" width={140} height={70} />
-          <div className="mt-3 flex items-center gap-2 rounded-lg bg-charcoal px-3 py-2">
-            <Image src="/brand/logo_jhs.png" alt="JHS Agroindustria" width={70} height={22} style={{ objectFit: "contain" }} />
-          </div>
-          <p className="mt-2 text-xs text-text-muted">Portal on-premise de JHS Agroindustria</p>
+          <p className="mt-2 text-xs text-text-muted">Portal on-premise de Agroindustrias del Istmo</p>
         </div>
         <form onSubmit={entrar} className="flex flex-col gap-3">
           <input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} className={inputStyle} required />
