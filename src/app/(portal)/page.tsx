@@ -63,12 +63,12 @@ export default async function DashboardPage() {
   const serie7 = serieHuevos.slice(-7).map((c) => {
     const v = (c.valores as Record<string, { meta?: number; causado: number }>).produccion_cajas;
     const d = new Date(c.fecha + "T00:00:00Z");
-    return { label: d.toLocaleDateString("es-VE", { weekday: "short" }).replace(".", ""), value: v?.causado ?? 0, meta: v?.meta };
+    return { label: d.toLocaleDateString("es-PA", { weekday: "short" }).replace(".", ""), value: v?.causado ?? 0, meta: v?.meta };
   });
 
   return (
     <div>
-      <PageHeader title="Panel en vivo" subtitle="JHS Agroindustria — Consolidado de unidades productivas" action={<ReportButtons />} />
+      <PageHeader title="Panel en vivo" subtitle="Agroindustrias del Istmo — Consolidado de unidades productivas" action={<ReportButtons />} />
 
       <div className="px-8 py-6">
         {alertasActivas.length > 0 && (
