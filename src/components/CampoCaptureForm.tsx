@@ -166,7 +166,7 @@ export default function CampoCaptureForm({
         <>
         <div className="flex items-center justify-between">
           <p className="text-xs font-bold uppercase tracking-wide text-text-faint">
-            Captura del día — {new Date().toLocaleDateString("es-VE")}
+            Captura del día — {new Date().toLocaleDateString("es-PA")}
           </p>
           {pendientesCount > 0 && (
             <button onClick={sincronizar} disabled={syncEstado === "syncing"} className="rounded-full bg-orange-dim px-3 py-1 text-xs font-bold text-orange">
@@ -364,7 +364,7 @@ function HistorialTab({ historial }: { historial: HistorialItem[] }) {
               <p className="text-sm font-semibold text-charcoal">{h.fecha}</p>
               <span className="text-xs font-semibold text-success">Sincronizado</span>
             </div>
-            <p className="mt-0.5 text-[11px] text-text-faint">{new Date(h.sincronizadoEn).toLocaleString("es-VE")}</p>
+            <p className="mt-0.5 text-[11px] text-text-faint">{new Date(h.sincronizadoEn).toLocaleString("es-PA")}</p>
             {h.observaciones && <p className="mt-1 text-xs text-text-muted">{h.observaciones}</p>}
           </div>
         ))}
