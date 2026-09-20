@@ -38,7 +38,6 @@ export default function Sidebar({ nombre }: { nombre: string }) {
         })}
       </nav>
       <div className="border-t border-white/10 px-6 py-4">
-        <Image src="/brand/logo_jhs.png" alt="JHS Agroindustria" width={64} height={20} style={{ objectFit: "contain" }} className="mb-3 opacity-80" />
         <p className="text-xs text-white/50">Conectado como</p>
         <p className="text-sm font-semibold">{nombre}</p>
         <SignOutButton className="mt-2 inline-block text-xs text-orange" />
