@@ -1,6 +1,111 @@
 @import "tailwindcss";
 
 /*
+ * Identidad visual AgroPulse para Agroindustrias del Istmo — construida
+ * sobre los colores corporativos del cliente: charcoal oscuro de su
+ * cabecera + naranja vivo como acento primario, azul como acento
+ * secundario. Fondo crema
+ * cálido (no blanco puro, no negro — un portal de campo se lee al sol,
+ * de día, en una granja) en vez del tema oscuro "banca privada" de
+ * ZiMPLIFIKA. El verde queda solo como semántica de "positivo/meta
+ * cumplida", nunca como color de marca.
+ */
+:root {
+  --bg: #f5f2ec;
+  --bg-elevated: #ffffff;
+  --panel: #ffffff;
+  --panel-2: #efe9dc;
+  --border: #e4dfd3;
+  --border-strong: #d3ccb9;
+
+  --text: #35342f;
+  --text-muted: #736f64;
+  --text-faint: #a29c8c;
+
+  --orange: #ef7d1e;
+  --orange-bright: #ff9640;
+  --orange-dim: rgba(239, 125, 30, 0.12);
+
+  --charcoal: #3c3c3a;
+  --charcoal-bright: #57564f;
+
+  --blue: #1d5a96;
+  --blue-dim: rgba(29, 90, 150, 0.12);
+
+  --accent: #ef7d1e;
+  --success: #2f7d4f;
+  --success-dim: rgba(47, 125, 79, 0.14);
+  --danger: #c23b3b;
+  --danger-dim: rgba(194, 59, 59, 0.12);
+  --warning: #ef7d1e;
+  --warning-dim: #fdf0e0;
+
+  --shadow-elevated: 0 20px 50px -24px rgba(60, 60, 58, 0.28);
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-bg-elevated: var(--bg-elevated);
+  --color-panel: var(--panel);
+  --color-panel-2: var(--panel-2);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-text: var(--text);
+  --color-text-muted: var(--text-muted);
+  --color-text-faint: var(--text-faint);
+  --color-orange: var(--orange);
+  --color-orange-bright: var(--orange-bright);
+  --color-charcoal: var(--charcoal);
+  --color-charcoal-bright: var(--charcoal-bright);
+  --color-blue: var(--blue);
+  --color-accent: var(--accent);
+  --color-success: var(--success);
+  --color-danger: var(--danger);
+  --color-warning: var(--warning);
+  --font-sans: var(--font-inter);
+  --font-display: var(--font-manrope);
+}
+
+* {
+  border-color: var(--border);
+}
+
+html {
+  color-scheme: light;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: -0.008em;
+}
+
+::selection {
+  background: var(--orange-dim);
+  color: var(--orange);
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 999px;
+}
+
+@media print {
+  html, body {
+    background: #fff !important;
+  }
+}
+@import "tailwindcss";
+
+/*
  * Identidad visual AgroPulse para JHS Agroindustria — construida sobre
  * los colores corporativos REALES de JHS (jhs.com.ve): charcoal oscuro
  * de su cabecera + naranja vivo de su marca Andi Huevos como acento
