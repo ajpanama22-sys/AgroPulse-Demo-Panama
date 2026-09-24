@@ -9,7 +9,10 @@ export default function ReportButtons() {
         <Button variant="ghost">Exportar Excel</Button>
       </a>
       <a href="/api/reportes/pdf">
-        <Button variant="primary">Reporte PDF</Button>
+        <Button variant="ghost">Reporte PDF</Button>
+      </a>
+      <a href="/reportes">
+        <Button variant="primary">Ver todos los reportes</Button>
       </a>
     </div>
   );
