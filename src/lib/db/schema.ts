@@ -144,6 +144,68 @@ export const edrLineas = pgTable("edr_lineas", {
   causado: numeric("causado").notNull(),
 }, (t) => [uniqueIndex("edr_lineas_empresa_periodo_concepto_uq").on(t.empresaId, t.periodo, t.concepto)]);
 
+export const generaPollo = pgEnum("genetica_pollo", ["cobb_500", "hubbard", "ross"]);
+export const estadoLote = pgEnum("estado_lote", ["activo", "cerrado"]);
+export const tipoEventoLote = pgEnum("tipo_evento_lote", ["mortalidad", "pesaje", "alimento", "saque", "beneficio"]);
+export const causaMortalidad = pgEnum("causa_mortalidad", ["ascitis", "problema_patas", "respiratorio", "picaje", "descarte", "otra"]);
+
+// Lote de Pollo de Engorde — la unidad real de trazabilidad del proceso
+// (RF03): un galpón aloja un lote a la vez, con población y genética
+// propias; todo lo que pasa durante el ciclo (mortalidad, pesajes,
+// alimento, saques, beneficio) se registra como un evento contra ESTE
+// lote, no como una celda suelta del día. El cierre congela los
+// indicadores finales (conversión, IEE) para que no se recalculen distinto
+// cada vez que se mira el histórico.
+export const lotesPollo = pgTable("lotes_pollo", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  ubicacionId: uuid("ubicacion_id").notNull().references(() => ubicaciones.id), // galpón
+  codigo: text("codigo").notNull(), // p.ej. "G1-2026-08"
+  genetica: generaPollo("genetica").notNull().default("cobb_500"),
+  fechaAlojamiento: date("fecha_alojamiento").notNull(),
+  poblacionInicial: integer("poblacion_inicial").notNull(),
+  pesoInicialGr: numeric("peso_inicial_gr"),
+  estado: estadoLote("estado").notNull().default("activo"),
+  fechaCierre: date("fecha_cierre"),
+  // Congelados al cierre — null mientras el lote está activo.
+  avesBeneficio: integer("aves_beneficio"),
+  kgBeneficiados: numeric("kg_beneficiados"),
+  pctPolloA: numeric("pct_pollo_a"),
+  pctPolloB: numeric("pct_pollo_b"),
+  pctMerma: numeric("pct_merma"),
+  conversion: numeric("conversion"), // kg alimento consumido / kg peso vivo ganado
+  iee: numeric("iee"), // Índice de Eficiencia Europeo
+  creadoEn: timestamp("creado_en").notNull().defaultNow(),
+}, (t) => [uniqueIndex("lotes_pollo_ubicacion_codigo_uq").on(t.ubicacionId, t.codigo)]);
+
+// Evento diario de un lote — una fila por hecho (no un JSON de "el día"),
+// así la mortalidad acumulada, el alimento acumulado y el peso muestral
+// se pueden sumar/promediar sin ambigüedad y quedan trazables uno por uno
+// (quién, cuándo, con qué causa) para la auditoría del cierre.
+export const loteEventosPollo = pgTable("lote_eventos_pollo", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  loteId: uuid("lote_id").notNull().references(() => lotesPollo.id, { onDelete: "cascade" }),
+  fecha: date("fecha").notNull(),
+  tipo: tipoEventoLote("tipo").notNull(),
+  edadDias: integer("edad_dias"),
+  // mortalidad
+  mortalidadCantidad: integer("mortalidad_cantidad"),
+  mortalidadCausa: causaMortalidad("mortalidad_causa"),
+  // pesaje muestral
+  pesoMuestraGr: numeric("peso_muestra_gr"),
+  tamanoMuestra: integer("tamano_muestra"),
+  // alimento
+  alimentoConsumidoKg: numeric("alimento_consumido_kg"),
+  // saque (venta en pie parcial) / beneficio (cierre de planta)
+  avesMovidas: integer("aves_movidas"),
+  kgMovidos: numeric("kg_movidos"),
+  clasificacion: text("clasificacion"), // "A" | "B" | "merma" — solo aplica a eventos de beneficio
+  observaciones: text("observaciones"),
+  capturadoPorId: uuid("capturado_por_id").references(() => usuarios.id),
+  origen: origenCaptura("origen").notNull().default("manual"),
+  creadoEnDispositivo: timestamp("creado_en_dispositivo").notNull(),
+  sincronizadoEn: timestamp("sincronizado_en").notNull().defaultNow(),
+});
+
 // Bitácora de auditoría — quién hizo qué, cuándo. Se lee en el panel de
 // administración (solo admin/gerencial) y sirve como evidencia ante el
 // cliente de que el sistema es trazable, no una hoja de cálculo compartida.
