@@ -1,5 +1,6 @@
 import { db } from "@/lib/db/client";
-import { edrLineas, empresas } from "@/lib/db/schema";
+import { edrLineas } from "@/lib/db/schema";
+import { unidadesPorEmpresa } from "@/lib/reportes-data";
 
 // Agregación de EDR mensual (24 meses reales/sintéticos ya cargados en
 // Neon) a granularidades más gruesas — no requiere tocar el esquema: cada
@@ -66,14 +67,9 @@ export function variacion(actual: number, previo: number): { abs: number; pct: n
 export const CONCEPTOS_CLAVE = ["(+) Ingresos por Ventas (Devengado)", "(=) EBITDA", "(=) UTILIDAD NETA"];
 
 export async function agregarPorBucket(gran: Granularidad) {
-  const [edr, empresasAll] = await Promise.all([db.select().from(edrLineas), db.select().from(empresas)]);
-  const unidadPorEmpresa: Record<string, string> = {};
-  for (const e of empresasAll) {
-    if (e.nombre.includes("HUEVOS")) unidadPorEmpresa[e.id] = "huevos";
-    else if (e.nombre.includes("DORADO")) unidadPorEmpresa[e.id] = "pollo";
-    else if (e.nombre.includes("CERDOS")) unidadPorEmpresa[e.id] = "cerdo";
-  }
-  const empresaNombre = Object.fromEntries(empresasAll.map((e) => [e.id, e.nombre.split(" - ")[0]]));
+  const [edr, unidadesInfo] = await Promise.all([db.select().from(edrLineas), unidadesPorEmpresa()]);
+  const unidadPorEmpresa: Record<string, string> = Object.fromEntries(Object.entries(unidadesInfo).map(([empresaId, u]) => [empresaId, u.unidadSlug]));
+  const empresaNombre = Object.fromEntries(Object.entries(unidadesInfo).map(([empresaId, u]) => [empresaId, u.empresaNombre]));
 
   const agg = new Map<string, Map<string, Map<string, number>>>();
   for (const l of edr) {
