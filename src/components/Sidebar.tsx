@@ -7,6 +7,7 @@ import SignOutButton from "@/components/SignOutButton";
 
 const ITEMS = [
   { href: "/", label: "Panel", icon: "grid" },
+  { href: "/pollo", label: "Pollo de Engorde", icon: "bird" },
   { href: "/admin/analisis", label: "Análisis", icon: "chart" },
   { href: "/admin/usuarios", label: "Usuarios", icon: "users" },
   { href: "/admin/auditoria", label: "Auditoría", icon: "shield" },
