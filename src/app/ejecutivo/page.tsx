@@ -118,6 +118,7 @@ function ExecTile({ tipo, accent, label, value }: { tipo: "huevo" | "pollo" | "c
         <div className="min-w-0">
           <p className="truncate text-[10px] font-semibold uppercase tracking-wide text-text-faint">{label}</p>
           <p className="truncate font-display text-lg font-bold text-charcoal">{value}</p>
+        </div>
       </div>
     </div>
   );
