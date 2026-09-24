@@ -18,6 +18,8 @@ const num = (s: string) => Number(String(s).replace(/[^\d.-]/g, "")) || 0;
 async function main() {
   console.log("Limpiando tablas...");
   await db.delete(schema.capturaEvidencias);
+  await db.delete(schema.loteEventosPollo);
+  await db.delete(schema.lotesPollo);
   await db.delete(schema.capturas);
   await db.delete(schema.ubicacionIndicadores);
   await db.delete(schema.edrLineas);
@@ -303,6 +305,113 @@ async function main() {
   });
   await db.insert(schema.capturas).values(historicoRows);
 
+  console.log("Pollo de Engorde — lotes reales (Chiriquí — Engorde, galpón G1)...");
+  // Dos lotes sobre la misma ubicación (galpón G1): uno YA CERRADO con ciclo
+  // completo (alojamiento → eventos diarios → beneficio → cierre) y uno
+  // ACTIVO a media crianza — así el módulo puede mostrar tanto el histórico
+  // (para comparar lotes) como el seguimiento en vivo de un lote en curso.
+  // Todos los indicadores derivados (viabilidad, conversión, I.E.E.) se
+  // calculan en src/lib/analisis-pollo.ts a partir de estos eventos, nunca
+  // se tipean a mano.
+  const loteCerradoId = randomUUID();
+  const loteActivoId = randomUUID();
+
+  await db.insert(schema.lotesPollo).values([
+    {
+      id: loteCerradoId,
+      ubicacionId: ubic.polloEngorde.id,
+      codigo: "G1-2026-06",
+      genetica: "cobb_500",
+      fechaAlojamiento: "2026-06-20",
+      poblacionInicial: 38000,
+      pesoInicialGr: "42",
+      estado: "cerrado",
+      fechaCierre: "2026-08-01",
+      avesBeneficio: 35872,
+      kgBeneficiados: "102235",
+      pctPolloA: "88",
+      pctPolloB: "8",
+      pctMerma: "4",
+      conversion: "1.60",
+      iee: "400.4",
+    },
+    {
+      id: loteActivoId,
+      ubicacionId: ubic.polloEngorde.id,
+      codigo: "G1-2026-08",
+      genetica: "cobb_500",
+      fechaAlojamiento: "2026-07-20",
+      poblacionInicial: 39500,
+      pesoInicialGr: "43",
+      estado: "activo",
+      fechaCierre: null,
+      avesBeneficio: null,
+      kgBeneficiados: null,
+      pctPolloA: null,
+      pctPolloB: null,
+      pctMerma: null,
+      conversion: null,
+      iee: null,
+    },
+  ]);
+
+  const eventosCerrado: (typeof schema.loteEventosPollo.$inferInsert)[] = [
+    // Mortalidad semanal — 2,128 aves acumuladas en 42 días (5.6%), causas variadas.
+    { loteId: loteCerradoId, fecha: "2026-06-27", tipo: "mortalidad", edadDias: 7, mortalidadCantidad: 410, mortalidadCausa: "ascitis", creadoEnDispositivo: new Date("2026-06-27T07:10:00Z") },
+    { loteId: loteCerradoId, fecha: "2026-07-04", tipo: "mortalidad", edadDias: 14, mortalidadCantidad: 350, mortalidadCausa: "respiratorio", creadoEnDispositivo: new Date("2026-07-04T07:05:00Z") },
+    { loteId: loteCerradoId, fecha: "2026-07-11", tipo: "mortalidad", edadDias: 21, mortalidadCantidad: 320, mortalidadCausa: "problema_patas", creadoEnDispositivo: new Date("2026-07-11T07:00:00Z") },
+    { loteId: loteCerradoId, fecha: "2026-07-18", tipo: "mortalidad", edadDias: 28, mortalidadCantidad: 300, mortalidadCausa: "ascitis", creadoEnDispositivo: new Date("2026-07-18T07:00:00Z") },
+    { loteId: loteCerradoId, fecha: "2026-07-25", tipo: "mortalidad", edadDias: 35, mortalidadCantidad: 280, mortalidadCausa: "picaje", creadoEnDispositivo: new Date("2026-07-25T07:00:00Z") },
+    { loteId: loteCerradoId, fecha: "2026-07-29", tipo: "mortalidad", edadDias: 39, mortalidadCantidad: 260, mortalidadCausa: "descarte", creadoEnDispositivo: new Date("2026-07-29T07:00:00Z") },
+    { loteId: loteCerradoId, fecha: "2026-08-01", tipo: "mortalidad", edadDias: 42, mortalidadCantidad: 208, mortalidadCausa: "otra", creadoEnDispositivo: new Date("2026-08-01T06:30:00Z") },
+    // Pesajes muestrales semanales (curva de crecimiento COBB 500).
+    { loteId: loteCerradoId, fecha: "2026-06-27", tipo: "pesaje", edadDias: 7, pesoMuestraGr: "175", tamanoMuestra: 120, creadoEnDispositivo: new Date("2026-06-27T09:00:00Z") },
+    { loteId: loteCerradoId, fecha: "2026-07-04", tipo: "pesaje", edadDias: 14, pesoMuestraGr: "480", tamanoMuestra: 120, creadoEnDispositivo: new Date("2026-07-04T09:00:00Z") },
+    { loteId: loteCerradoId, fecha: "2026-07-11", tipo: "pesaje", edadDias: 21, pesoMuestraGr: "920", tamanoMuestra: 120, creadoEnDispositivo: new Date("2026-07-11T09:00:00Z") },
+    { loteId: loteCerradoId, fecha: "2026-07-18", tipo: "pesaje", edadDias: 28, pesoMuestraGr: "1550", tamanoMuestra: 100, creadoEnDispositivo: new Date("2026-07-18T09:00:00Z") },
+    { loteId: loteCerradoId, fecha: "2026-07-25", tipo: "pesaje", edadDias: 35, pesoMuestraGr: "2150", tamanoMuestra: 100, creadoEnDispositivo: new Date("2026-07-25T09:00:00Z") },
+    { loteId: loteCerradoId, fecha: "2026-08-01", tipo: "pesaje", edadDias: 42, pesoMuestraGr: "2850", tamanoMuestra: 100, creadoEnDispositivo: new Date("2026-08-01T06:00:00Z") },
+    // Alimento consumido por semana (kg) — conversión final ≈ 1.60.
+    { loteId: loteCerradoId, fecha: "2026-06-27", tipo: "alimento", edadDias: 7, alimentoConsumidoKg: "4200", creadoEnDispositivo: new Date("2026-06-27T18:00:00Z") },
+    { loteId: loteCerradoId, fecha: "2026-07-04", tipo: "alimento", edadDias: 14, alimentoConsumidoKg: "10200", creadoEnDispositivo: new Date("2026-07-04T18:00:00Z") },
+    { loteId: loteCerradoId, fecha: "2026-07-11", tipo: "alimento", edadDias: 21, alimentoConsumidoKg: "18400", creadoEnDispositivo: new Date("2026-07-11T18:00:00Z") },
+    { loteId: loteCerradoId, fecha: "2026-07-18", tipo: "alimento", edadDias: 28, alimentoConsumidoKg: "27800", creadoEnDispositivo: new Date("2026-07-18T18:00:00Z") },
+    { loteId: loteCerradoId, fecha: "2026-07-25", tipo: "alimento", edadDias: 35, alimentoConsumidoKg: "39200", creadoEnDispositivo: new Date("2026-07-25T18:00:00Z") },
+    { loteId: loteCerradoId, fecha: "2026-08-01", tipo: "alimento", edadDias: 42, alimentoConsumidoKg: "63776", creadoEnDispositivo: new Date("2026-08-01T06:00:00Z") },
+    // Saque parcial antes del cierre (venta anticipada a canal de pollo vivo).
+    { loteId: loteCerradoId, fecha: "2026-07-30", tipo: "saque", edadDias: 40, avesMovidas: 500, kgMovidos: "1400", observaciones: "Venta anticipada — canal pollo vivo, comprador local.", creadoEnDispositivo: new Date("2026-07-30T10:00:00Z") },
+    // Beneficio final — clasificación A / B / merma.
+    { loteId: loteCerradoId, fecha: "2026-08-01", tipo: "beneficio", edadDias: 42, avesMovidas: 31567, kgMovidos: "89967", clasificacion: "A", creadoEnDispositivo: new Date("2026-08-01T14:00:00Z") },
+    { loteId: loteCerradoId, fecha: "2026-08-01", tipo: "beneficio", edadDias: 42, avesMovidas: 2870, kgMovidos: "8179", clasificacion: "B", creadoEnDispositivo: new Date("2026-08-01T14:00:00Z") },
+    { loteId: loteCerradoId, fecha: "2026-08-01", tipo: "beneficio", edadDias: 42, avesMovidas: 1435, kgMovidos: "4089", clasificacion: "merma", creadoEnDispositivo: new Date("2026-08-01T14:00:00Z") },
+  ];
+
+  const eventosActivo: (typeof schema.loteEventosPollo.$inferInsert)[] = [
+    // Mortalidad — lote en curso, 830 aves acumuladas (2.1%) hasta el día 39.
+    { loteId: loteActivoId, fecha: "2026-07-23", tipo: "mortalidad", edadDias: 3, mortalidadCantidad: 220, mortalidadCausa: "ascitis", creadoEnDispositivo: new Date("2026-07-23T07:00:00Z") },
+    { loteId: loteActivoId, fecha: "2026-07-30", tipo: "mortalidad", edadDias: 10, mortalidadCantidad: 150, mortalidadCausa: "respiratorio", creadoEnDispositivo: new Date("2026-07-30T07:00:00Z") },
+    { loteId: loteActivoId, fecha: "2026-08-06", tipo: "mortalidad", edadDias: 17, mortalidadCantidad: 130, mortalidadCausa: "problema_patas", creadoEnDispositivo: new Date("2026-08-06T07:00:00Z") },
+    { loteId: loteActivoId, fecha: "2026-08-13", tipo: "mortalidad", edadDias: 24, mortalidadCantidad: 120, mortalidadCausa: "picaje", creadoEnDispositivo: new Date("2026-08-13T07:00:00Z") },
+    { loteId: loteActivoId, fecha: "2026-08-20", tipo: "mortalidad", edadDias: 31, mortalidadCantidad: 115, mortalidadCausa: "descarte", creadoEnDispositivo: new Date("2026-08-20T07:00:00Z") },
+    { loteId: loteActivoId, fecha: "2026-08-27", tipo: "mortalidad", edadDias: 38, mortalidadCantidad: 95, mortalidadCausa: "otra", creadoEnDispositivo: new Date("2026-08-27T07:00:00Z") },
+    // Pesajes muestrales — última medición al día 39 (2.55 kg, lote todavía en engorde).
+    { loteId: loteActivoId, fecha: "2026-07-27", tipo: "pesaje", edadDias: 7, pesoMuestraGr: "180", tamanoMuestra: 120, creadoEnDispositivo: new Date("2026-07-27T09:00:00Z") },
+    { loteId: loteActivoId, fecha: "2026-08-03", tipo: "pesaje", edadDias: 14, pesoMuestraGr: "520", tamanoMuestra: 120, creadoEnDispositivo: new Date("2026-08-03T09:00:00Z") },
+    { loteId: loteActivoId, fecha: "2026-08-10", tipo: "pesaje", edadDias: 21, pesoMuestraGr: "980", tamanoMuestra: 120, creadoEnDispositivo: new Date("2026-08-10T09:00:00Z") },
+    { loteId: loteActivoId, fecha: "2026-08-17", tipo: "pesaje", edadDias: 28, pesoMuestraGr: "1650", tamanoMuestra: 100, creadoEnDispositivo: new Date("2026-08-17T09:00:00Z") },
+    { loteId: loteActivoId, fecha: "2026-08-24", tipo: "pesaje", edadDias: 35, pesoMuestraGr: "2300", tamanoMuestra: 100, creadoEnDispositivo: new Date("2026-08-24T09:00:00Z") },
+    { loteId: loteActivoId, fecha: "2026-08-28", tipo: "pesaje", edadDias: 39, pesoMuestraGr: "2550", tamanoMuestra: 100, creadoEnDispositivo: new Date("2026-08-28T09:00:00Z") },
+    // Alimento consumido por semana (kg) — conversión al día ≈ 1.53.
+    { loteId: loteActivoId, fecha: "2026-07-27", tipo: "alimento", edadDias: 7, alimentoConsumidoKg: "4200", creadoEnDispositivo: new Date("2026-07-27T18:00:00Z") },
+    { loteId: loteActivoId, fecha: "2026-08-03", tipo: "alimento", edadDias: 14, alimentoConsumidoKg: "10200", creadoEnDispositivo: new Date("2026-08-03T18:00:00Z") },
+    { loteId: loteActivoId, fecha: "2026-08-10", tipo: "alimento", edadDias: 21, alimentoConsumidoKg: "17800", creadoEnDispositivo: new Date("2026-08-10T18:00:00Z") },
+    { loteId: loteActivoId, fecha: "2026-08-17", tipo: "alimento", edadDias: 28, alimentoConsumidoKg: "27200", creadoEnDispositivo: new Date("2026-08-17T18:00:00Z") },
+    { loteId: loteActivoId, fecha: "2026-08-24", tipo: "alimento", edadDias: 35, alimentoConsumidoKg: "38900", creadoEnDispositivo: new Date("2026-08-24T18:00:00Z") },
+    { loteId: loteActivoId, fecha: "2026-08-28", tipo: "alimento", edadDias: 39, alimentoConsumidoKg: "52500", creadoEnDispositivo: new Date("2026-08-28T18:00:00Z") },
+  ];
+
+  await db.insert(schema.loteEventosPollo).values([...eventosCerrado, ...eventosActivo]);
+
   console.log("Insumos ABA — Maíz/Soya/Aceite (alcance de inventario crítico, datos sintéticos)...");
   const insumoDefs = [
     { nombre: "Maíz", unidadMedida: "Tm", minimoDias: 7, inventarioActual: "72", consumoDiarioPromedio: "18" }, // 4.0 días
@@ -378,7 +487,7 @@ async function main() {
 
   console.log("Alertas WOW (inventario crítico + mortalidad fuera de meta)...");
   await db.insert(schema.alertas).values([
-    { tipo: "inventario_critico", severidad: "alta", titulo: "Alcance de inventario — Maíz", detalle: "4 días restantes (por debajo del mínimo de 7 días)", entidadRef: "Maíz" },
+    { tipo: "inventario_critico", severidad: "alta", titulo: "Alcance de inventario — MaÞ�", detalle: "4 días restantes (por debajo del mínimo de 7 días)", entidadRef: "MaÞ�" },
     { tipo: "inventario_critico", severidad: "alta", titulo: "Alcance de inventario — Soya", detalle: "3 días restantes (por debajo del mínimo de 7 días)", entidadRef: "Soya" },
     { tipo: "inventario_critico", severidad: "alta", titulo: "Alcance de inventario — Aceite", detalle: "2 días restantes — el más crítico de los 3 insumos (mínimo 7 días)", entidadRef: "Aceite" },
     { tipo: "mortalidad_alta", severidad: "media", titulo: "Mortalidad sobre meta — Pollo Engorde", detalle: "7.8% causado vs. 5.2% meta (+50%) en Chiriquí — Engorde", entidadRef: ubic.polloEngorde.id },
