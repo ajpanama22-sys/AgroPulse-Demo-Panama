@@ -9,6 +9,7 @@ const ITEMS = [
   { href: "/", label: "Panel", icon: "grid" },
   { href: "/pollo", label: "Pollo de Engorde", icon: "bird" },
   { href: "/admin/analisis", label: "Análisis", icon: "chart" },
+  { href: "/reportes", label: "Reportes", icon: "file" },
   { href: "/admin/usuarios", label: "Usuarios", icon: "users" },
   { href: "/admin/auditoria", label: "Auditoría", icon: "shield" },
   { href: "/admin/organizacion", label: "Organización", icon: "building" },
