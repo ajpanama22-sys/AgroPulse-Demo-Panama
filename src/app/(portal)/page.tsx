@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/lib/db/client";
 import { alertas, capturas, ubicaciones, empresas, edrLineas } from "@/lib/db/schema";
@@ -91,6 +92,16 @@ export default async function DashboardPage() {
           <UnitStat tipo="aba" accent={unidadColor.aba} label="EBITDA Consolidado (mes)" value={fmtMoney(totalConsolidadoCausado)} hint={`${Math.round((totalConsolidadoCausado / totalConsolidadoMeta) * 100)}% de meta`} />
         </div>
 
+        <Card className="mt-6">
+          <p className="mb-4 text-sm font-semibold text-charcoal">Líneas de negocio</p>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <LineaCard tipo="huevo" nombre="Huevos" accent={unidadColor.huevos} href={null} />
+            <LineaCard tipo="pollo" nombre="Pollo de Engorde" accent={unidadColor.pollo} href="/pollo" />
+            <LineaCard tipo="cerdo" nombre="Cerdo" accent={unidadColor.cerdo} href={null} />
+            <LineaCard tipo="aba" nombre="Planta ABA" accent={unidadColor.aba} href={null} />
+          </div>
+        </Card>
+
         <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-5">
           <Card className="lg:col-span-3">
             <p className="text-sm font-semibold text-charcoal">Producción de Huevos — últimos días (cajas)</p>
@@ -177,10 +188,24 @@ function UnitStat({ tipo, accent, label, value, hint }: { tipo: "huevo" | "pollo
   );
 }
 
+function LineaCard({ tipo, nombre, accent, href }: { tipo: "huevo" | "pollo" | "cerdo" | "aba"; nombre: string; accent: string; href: string | null }) {
+  const content = (
+    <Card className={`relative overflow-hidden text-center transition-transform ${href ? "cursor-pointer hover:-translate-y-0.5 hover:shadow-md" : "opacity-70"}`}>
+      <div className="absolute inset-x-0 top-0 h-1" style={{ background: accent }} />
+      <div className="flex flex-col items-center gap-2 py-2">
+        <ProductIcon3D tipo={tipo} size={72} />
+        <p className="font-display text-sm font-bold text-charcoal">{nombre}</p>
+        <Badge tone={href ? "success" : "neutral"}>{href ? "Ver detalle" : "Próximamente"}</Badge>
+      </div>
+    </Card>
+  );
+  return href ? <Link href={href}>{content}</Link> : content;
+}
+
 function WarningIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="shrink-0">
-      <path d="M12 9v4m0 4h.01M10.29 3.86 1.82 18a1.5 1.5 0 0 0 1.29 2.25h17.78A1.5 1.5 0 0 0 22.18 18L13.71 3.86a1.5 1.5 0 0 0-2.58 0Z" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M12 9v4m0 4h.01M10.29 3.86 1.82 18a1.5 1.5 0 0 0 1.29 2.25H17.78A1.5 1.5 0 0 0 22.18 18L13.71 3.86a1.5 1.5 0 0 0-2.58 0Z" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
