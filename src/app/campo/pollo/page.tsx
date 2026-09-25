@@ -52,7 +52,7 @@ export default async function CampoPolloPage() {
     const lote = loteActivoPorGalpon[g.id];
     const granja = g.padreId ? granjaPorId[g.padreId] : undefined;
     if (!lote) {
-      return { galponId: g.id, galponNombre: g.nombre, granjaId: granja?.id ?? "", granjaNombre: granja?.nombre ?? "—", lote: null };
+      return { galponId: g.id, galponNombre: g.nombre, granjaId: granja?.id ?? "", granjaNombre: granja?.nombre ?? "—", qrToken: g.qrToken, lote: null };
     }
     const eventosLote = eventosPorLote[lote.id] ?? [];
     const resumen = resumirLote(lote, eventosLote, tabla);
@@ -63,6 +63,7 @@ export default async function CampoPolloPage() {
       galponNombre: g.nombre,
       granjaId: granja?.id ?? "",
       granjaNombre: granja?.nombre ?? "—",
+      qrToken: g.qrToken,
       lote: {
         id: lote.id,
         codigo: lote.codigo,

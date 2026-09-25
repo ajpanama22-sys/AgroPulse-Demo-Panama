@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
 import { enviarOEncolar, listarPendientesPollo, sincronizarPendientesPollo } from "@/lib/offline-queue-pollo";
@@ -30,6 +30,7 @@ export type AsignacionGalpon = {
   galponNombre: string;
   granjaId: string;
   granjaNombre: string;
+  qrToken: string;
   lote: LoteActivoUi | null;
 };
 
@@ -138,6 +139,7 @@ export default function CampoPolloApp({
   const [pendientesCount, setPendientesCount] = useState(0);
   const [syncEstado, setSyncEstado] = useState<"idle" | "syncing" | "done" | "stopped">("idle");
   const [ultimoGuardado, setUltimoGuardado] = useState<"" | "local" | "servidor">("");
+  const [scanAbierto, setScanAbierto] = useState(false);
 
   const refrescarPendientes = useCallback(async () => {
     try {
@@ -176,6 +178,14 @@ export default function CampoPolloApp({
   // existe un lote activo y se rompía en blanco (el bug de "no hay volver").
   function volver() {
     setPantalla(asignacion?.lote ? { vista: "detalle", galponId: asignacion.galponId } : { vista: "home" });
+  }
+
+  // Un mismo punto de entrada al galpón, ya sea tocando su tarjeta en "Mis
+  // Granjas" o escaneando el QR pegado en la puerta del galpón — el
+  // diagrama de navegación del cliente muestra esto último como parte del
+  // flujo de campo (igual que ya existe para las otras líneas de negocio).
+  function abrirGalpon(id: string) {
+    setPantalla(asignaciones.find((a) => a.galponId === id)?.lote ? { vista: "detalle", galponId: id } : { vista: "apertura", galponId: id });
   }
 
   async function despues(resultado: "servidor" | "local") {
@@ -234,7 +244,7 @@ export default function CampoPolloApp({
       )}
 
       <main className="flex-1 overflow-y-auto p-4 pb-24">
-        {pantalla.vista === "home" && tab === "granjas" && <VistaMisGranjas asignaciones={asignaciones} onAbrir={(id) => setPantalla(asignaciones.find((a) => a.galponId === id)?.lote ? { vista: "detalle", galponId: id } : { vista: "apertura", galponId: id })} />}
+        {pantalla.vista === "home" && tab === "granjas" && <VistaMisGranjas asignaciones={asignaciones} onAbrir={abrirGalpon} onEscanear={() => setScanAbierto(true)} />}
         {pantalla.vista === "home" && tab === "historial" && <VistaHistorial historial={historial} />}
         {pantalla.vista === "home" && tab === "perfil" && (
           <VistaPerfil usuario={usuario} pendientesCount={pendientesCount} onSincronizar={sincronizar} syncEstado={syncEstado} />
@@ -281,6 +291,17 @@ export default function CampoPolloApp({
           ))}
         </nav>
       )}
+
+      {scanAbierto && (
+        <ScannerQrGalpon
+          asignaciones={asignaciones}
+          onCerrar={() => setScanAbierto(false)}
+          onSeleccionar={(id) => {
+            setScanAbierto(false);
+            abrirGalpon(id);
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -289,13 +310,18 @@ export default function CampoPolloApp({
 // Mis Granjas
 // ---------------------------------------------------------------------
 
-function VistaMisGranjas({ asignaciones, onAbrir }: { asignaciones: AsignacionGalpon[]; onAbrir: (galponId: string) => void }) {
+function VistaMisGranjas({ asignaciones, onAbrir, onEscanear }: { asignaciones: AsignacionGalpon[]; onAbrir: (galponId: string) => void; onEscanear: () => void }) {
   if (asignaciones.length === 0) {
     return <p className="mt-10 text-center text-sm text-text-muted">No tenés galpones asignados todavía. Pedile a tu supervisor que te asigne uno desde el portal.</p>;
   }
   return (
     <div className="flex flex-col gap-3">
-      <p className="text-sm font-semibold text-charcoal">Mis Granjas · {asignaciones.length} galpones asignados</p>
+      <div className="flex items-center justify-between">
+        <p className="text-sm font-semibold text-charcoal">Mis Granjas · {asignaciones.length} galpones asignados</p>
+        <button onClick={onEscanear} className="flex shrink-0 items-center gap-1.5 rounded-full bg-panel-2 px-3 py-1.5 text-xs font-semibold text-charcoal">
+          <QrIcon /> Escanear
+        </button>
+      </div>
       {asignaciones.map((a) => {
         const lote = a.lote;
         const pendientes = lote ? Object.values(lote.capturasHoy).filter((v) => !v).length : 0;
@@ -507,6 +533,7 @@ function FormMortalidad({ lote, onListo, onCancelar }: { lote: LoteActivoUi; onL
   const [causa, setCausa] = useState(CAUSAS[0].value);
   const [confirmando, setConfirmando] = useState(false);
   const [enviando, setEnviando] = useState(false);
+  const [fotos, setFotos] = useState<File[]>([]);
 
   const numCantidad = Number(cantidad || 0);
   const excedeSaldo = numCantidad > lote.saldo; // imposible: no puede morir más de lo que hay vivo — se bloquea, no se pide confirmar
@@ -529,7 +556,7 @@ function FormMortalidad({ lote, onListo, onCancelar }: { lote: LoteActivoUi; onL
       etiqueta: `Mortalidad — Lote ${lote.codigo}`,
       endpoint: "/api/pollo/eventos",
       campos: { tipo: "mortalidad", loteId: lote.id, fecha: hoyISO(), edadDias: String(lote.edad), cantidad, causa, creadoEnDispositivo: new Date().toISOString() },
-      fotos: [],
+      fotos,
     });
     setEnviando(false);
     setConfirmando(false);
@@ -545,6 +572,7 @@ function FormMortalidad({ lote, onListo, onCancelar }: { lote: LoteActivoUi; onL
           {CAUSAS.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
         </select>
       </Campo>
+      <CapturaFotoEvidencia fotos={fotos} onChange={setFotos} />
       {excedeSaldo && (
         <p className="rounded-xl border border-danger bg-[var(--danger-dim)] px-3 py-2 text-sm font-semibold text-danger">
           No puede ser mayor al saldo actual ({fmt(lote.saldo)} aves). Revisá el número.
@@ -568,6 +596,7 @@ function FormDescarte({ lote, onListo, onCancelar }: { lote: LoteActivoUi; onLis
   const [cantidad, setCantidad] = useState("");
   const [motivo, setMotivo] = useState("");
   const [enviando, setEnviando] = useState(false);
+  const [fotos, setFotos] = useState<File[]>([]);
 
   const numCantidad = Number(cantidad || 0);
   const excedeSaldo = numCantidad > lote.saldo;
@@ -579,7 +608,7 @@ function FormDescarte({ lote, onListo, onCancelar }: { lote: LoteActivoUi; onLis
       etiqueta: `Descarte — Lote ${lote.codigo}`,
       endpoint: "/api/pollo/eventos",
       campos: { tipo: "descarte", loteId: lote.id, fecha: hoyISO(), edadDias: String(lote.edad), cantidad, motivo, creadoEnDispositivo: new Date().toISOString() },
-      fotos: [],
+      fotos,
     });
     setEnviando(false);
     onListo(r);
@@ -590,6 +619,7 @@ function FormDescarte({ lote, onListo, onCancelar }: { lote: LoteActivoUi; onLis
       <EncabezadoForm titulo="Captura de Descarte" subtitulo={`Lote ${lote.codigo} · día ${lote.edad} · saldo actual ${fmt(lote.saldo)} aves`} onCancelar={onCancelar} />
       <Campo label="Cantidad de aves descartadas"><input inputMode="numeric" className={campoInput} value={cantidad} onChange={(e) => setCantidad(e.target.value)} placeholder="0" /></Campo>
       <Campo label="Motivo"><textarea className={campoInput} rows={2} value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder="Retraso de crecimiento, lesión, etc." /></Campo>
+      <CapturaFotoEvidencia fotos={fotos} onChange={setFotos} />
       {excedeSaldo && (
         <p className="rounded-xl border border-danger bg-[var(--danger-dim)] px-3 py-2 text-sm font-semibold text-danger">
           No puede ser mayor al saldo actual ({fmt(lote.saldo)} aves). Revisá el número.
@@ -605,6 +635,7 @@ function FormAlimento({ lote, onListo, onCancelar }: { lote: LoteActivoUi; onLis
   const [sacosDespachados, setSacosDespachados] = useState("");
   const [sacosDevueltos, setSacosDevueltos] = useState("");
   const [enviando, setEnviando] = useState(false);
+  const [fotos, setFotos] = useState<File[]>([]);
 
   const kgConsumidos = Math.max(0, (Number(sacosDespachados || 0) - Number(sacosDevueltos || 0)) * KG_POR_SACO);
   const gramosAveDia = lote.saldo > 0 ? (kgConsumidos * 1000) / lote.saldo : 0;
@@ -624,7 +655,7 @@ function FormAlimento({ lote, onListo, onCancelar }: { lote: LoteActivoUi; onLis
         observaciones: `Fase: ${fase} · Sacos despachados: ${sacosDespachados} · devueltos: ${sacosDevueltos || 0}`,
         creadoEnDispositivo: new Date().toISOString(),
       },
-      fotos: [],
+      fotos,
     });
     setEnviando(false);
     onListo(r);
@@ -648,6 +679,7 @@ function FormAlimento({ lote, onListo, onCancelar }: { lote: LoteActivoUi; onLis
           Consumido (auto): {kgConsumidos.toFixed(1)} kg · Gr/Ave/Día (auto): {gramosAveDia.toFixed(0)} g
         </div>
       )}
+      <CapturaFotoEvidencia fotos={fotos} onChange={setFotos} />
       <Boton onClick={guardar} disabled={enviando || !sacosDespachados}>{enviando ? "Guardando…" : "Guardar Consumo"}</Boton>
     </div>
   );
@@ -677,6 +709,7 @@ function FormPesaje({ lote, tabla, onListo, onCancelar }: { lote: LoteActivoUi; 
   const [tamanoMuestra, setTamanoMuestra] = useState("10");
   const [confirmando, setConfirmando] = useState(false);
   const [enviando, setEnviando] = useState(false);
+  const [fotos, setFotos] = useState<File[]>([]);
 
   const promedioGr = Number(pesoPromedioGr || 0);
   const muestra = Math.max(1, Number(tamanoMuestra || 0));
@@ -703,7 +736,7 @@ function FormPesaje({ lote, tabla, onListo, onCancelar }: { lote: LoteActivoUi; 
       etiqueta: `Pesaje — Lote ${lote.codigo}`,
       endpoint: "/api/pollo/eventos",
       campos: { tipo: "pesaje", loteId: lote.id, fecha: hoyISO(), edadDias: String(lote.edad), pesoMuestraGr: totalGr, tamanoMuestra, creadoEnDispositivo: new Date().toISOString() },
-      fotos: [],
+      fotos,
     });
     setEnviando(false);
     setConfirmando(false);
@@ -719,6 +752,7 @@ function FormPesaje({ lote, tabla, onListo, onCancelar }: { lote: LoteActivoUi; 
       <Campo label="Cantidad de aves en la muestra (opcional, solo para registro)">
         <input inputMode="numeric" className={campoInput} value={tamanoMuestra} onChange={(e) => setTamanoMuestra(e.target.value)} />
       </Campo>
+      <CapturaFotoEvidencia fotos={fotos} onChange={setFotos} />
 
       {promedioGr > 0 && (
         <div className={`rounded-xl px-3 py-2 text-sm ${requiereConfirmacion ? "border border-danger bg-[var(--danger-dim)] text-danger" : desviacionPct !== null && desviacionPct < -5 ? "bg-orange-dim text-orange" : "bg-panel-2 text-text-muted"}`}>
@@ -777,5 +811,175 @@ function FormCierre({ lote, onListo, onCancelar }: { lote: LoteActivoUi; onListo
       </p>
       <Boton variant="danger" onClick={guardar} disabled={enviando}>{enviando ? "Cerrando…" : "Confirmar Cierre de Lote"}</Boton>
     </div>
+  );
+}
+
+
+// ---------------------------------------------------------------------
+// Evidencia fotográfica — Mortalidad, Descarte, Consumo ABA y Pesaje
+// ---------------------------------------------------------------------
+
+// "Como Inspector Veterinario, quiero adjuntar evidencia fotográfica de
+// mortalidad y descartes desde la misma app, para sustentar los
+// registros" (historia de usuario del Mapa de Arquitectura) — el nodo
+// "Evidencia Fotográfica y Sincronización" del diagrama de navegación
+// cuelga de Mortalidad, Consumo ABA y Pesaje, así que el control queda
+// disponible en los cuatro formularios de captura, siempre opcional. Las
+// fotos viajan con el mismo evento (misma cola offline / mismo POST) y
+// quedan en `evidenciasPollo`, visibles después en el Repositorio de
+// Evidencias del portal de escritorio.
+function CapturaFotoEvidencia({ fotos, onChange }: { fotos: File[]; onChange: (fotos: File[]) => void }) {
+  return (
+    <div>
+      <span className="text-sm font-medium text-charcoal">Evidencia fotográfica (opcional)</span>
+      <div className="mt-1.5 flex flex-wrap gap-2">
+        {fotos.map((f, i) => (
+          <div key={i} className="group relative h-16 w-16 overflow-hidden rounded-lg border border-border">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={URL.createObjectURL(f)} alt="" className="h-full w-full object-cover" />
+            <button
+              type="button"
+              onClick={() => onChange(fotos.filter((_, j) => j !== i))}
+              className="absolute right-0 top-0 flex h-5 w-5 items-center justify-center rounded-bl-lg bg-charcoal/70 text-xs text-white"
+            >
+              ×
+            </button>
+          </div>
+        ))}
+        <label className="relative flex h-16 w-16 flex-col items-center justify-center gap-0.5 rounded-lg border border-dashed border-border text-text-faint">
+          <CameraIcon />
+          <span className="text-[10px]">Foto</span>
+          {/* <label> envolviendo el <input type=file> — dispara la cámara
+              nativa de forma confiable en Android/iOS, a diferencia de un
+              ref.click() programático sobre un input oculto. */}
+          <input
+            type="file"
+            accept="image/*"
+            capture="environment"
+            multiple
+            onChange={(e) => {
+              onChange([...fotos, ...Array.from(e.target.files ?? [])]);
+              e.target.value = "";
+            }}
+            className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+          />
+        </label>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------
+// Escaneo de QR — abrir un galpón por el código pegado en la puerta
+// ---------------------------------------------------------------------
+
+function ScannerQrGalpon({
+  asignaciones,
+  onCerrar,
+  onSeleccionar,
+}: {
+  asignaciones: AsignacionGalpon[];
+  onCerrar: () => void;
+  onSeleccionar: (galponId: string) => void;
+}) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [soportado, setSoportado] = useState(true);
+  const [noAsignado, setNoAsignado] = useState(false);
+
+  useEffect(() => {
+    let stream: MediaStream | null = null;
+    let raf: number;
+    let activo = true;
+
+    async function iniciar() {
+      // BarcodeDetector no está disponible en todos los navegadores (p.ej.
+      // iOS Safari) — sin soporte, se cae a la lista manual de abajo en
+      // vez de mostrar una cámara que nunca va a detectar nada.
+      if (typeof window === "undefined" || !("BarcodeDetector" in window)) {
+        setSoportado(false);
+        return;
+      }
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+        if (videoRef.current) videoRef.current.srcObject = stream;
+        // @ts-expect-error BarcodeDetector todavía no está en el lib.dom.d.ts estándar
+        const detector = new window.BarcodeDetector({ formats: ["qr_code"] });
+        const loop = async () => {
+          if (!activo || !videoRef.current) return;
+          try {
+            const codes = await detector.detect(videoRef.current);
+            const token = codes[0]?.rawValue as string | undefined;
+            if (token) {
+              const match = asignaciones.find((a) => a.qrToken === token);
+              if (match) {
+                onSeleccionar(match.galponId);
+                return;
+              }
+              setNoAsignado(true); // código válido de AgroPulse, pero no es uno de TUS galpones asignados
+            }
+          } catch {
+            /* frame no decodificable — se reintenta en el próximo */
+          }
+          raf = requestAnimationFrame(loop);
+        };
+        loop();
+      } catch {
+        setSoportado(false);
+      }
+    }
+    iniciar();
+    return () => {
+      activo = false;
+      cancelAnimationFrame(raf);
+      stream?.getTracks().forEach((t) => t.stop());
+    };
+  }, [asignaciones, onSeleccionar]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex flex-col bg-charcoal/95 p-5">
+      <div className="flex items-center justify-between text-white">
+        <p className="font-semibold">Escanear galpón</p>
+        <button onClick={onCerrar} className="text-2xl leading-none">×</button>
+      </div>
+      {soportado ? (
+        <div className="relative mt-4 aspect-square w-full overflow-hidden rounded-2xl">
+          <video ref={videoRef} autoPlay muted playsInline className="h-full w-full object-cover" />
+          <div className="pointer-events-none absolute inset-x-4 top-0 bottom-0">
+            <div className="absolute inset-0 rounded-xl border-2 border-orange/70" />
+          </div>
+        </div>
+      ) : (
+        <p className="mt-4 text-sm text-white/70">Este dispositivo no soporta lectura de QR en el navegador — elegí el galpón manualmente:</p>
+      )}
+      {noAsignado && (
+        <p className="mt-3 rounded-xl bg-danger/20 px-3 py-2 text-sm text-white">
+          Ese código no corresponde a ninguno de tus galpones asignados. Pedile a tu supervisor que revise la asignación.
+        </p>
+      )}
+      <div className="mt-4 flex flex-1 flex-col gap-2 overflow-y-auto">
+        {asignaciones.map((a) => (
+          <button key={a.galponId} onClick={() => onSeleccionar(a.galponId)} className="rounded-xl bg-white/10 px-4 py-3 text-left text-sm text-white">
+            {a.granjaNombre} · {a.galponNombre}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function QrIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" />
+      <path d="M14 14h3v3h-3zM20 14v7M14 20h4" />
+    </svg>
+  );
+}
+
+function CameraIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M4 8h3l2-2h6l2 2h3v11H4z" strokeLinejoin="round" /><circle cx="12" cy="13" r="3.2" />
+    </svg>
   );
 }

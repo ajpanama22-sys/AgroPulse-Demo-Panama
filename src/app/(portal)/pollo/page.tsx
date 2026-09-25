@@ -1,12 +1,13 @@
 import { eq, inArray } from "drizzle-orm";
 import { db } from "@/lib/db/client";
-import { empresas, ubicaciones, lotesPollo, loteEventosPollo, estandarGenetico, conciliacionesPlanta } from "@/lib/db/schema";
+import { empresas, ubicaciones, lotesPollo, loteEventosPollo, estandarGenetico, conciliacionesPlanta, evidenciasPollo } from "@/lib/db/schema";
 import { Card, PageHeader, Badge, StatTile } from "@/components/ui";
 import ProductIcon3D from "@/components/ProductIcon3D";
 import GraficoCumplimiento from "@/components/pollo/GraficoCumplimiento";
 import GraficoPesoRealVsEstandar from "@/components/pollo/GraficoPesoRealVsEstandar";
 import EstandarGeneticoTable from "@/components/pollo/EstandarGeneticoTable";
 import ConciliacionPanel from "@/components/pollo/ConciliacionPanel";
+import EvidenciasPanel from "@/components/pollo/EvidenciasPanel";
 import {
   resumirLote,
   construirIndicadoresDashboard,
@@ -28,6 +29,7 @@ const TABS = [
   { key: "lotes", label: "Lotes" },
   { key: "estandar", label: "Estándar Genético" },
   { key: "conciliacion", label: "Conciliación" },
+  { key: "evidencias", label: "Evidencias" },
 ] as const;
 type TabKey = (typeof TABS)[number]["key"];
 
@@ -58,8 +60,8 @@ async function cargarDatosElDorado() {
 
   const tabla = (await db.select().from(estandarGenetico)) as unknown as (EstandarGeneticoPunto & { fuente: string | null })[];
 
-  const conciliacionesRaw = await db.select().from(conciliacionesPlanta);
   const loteById = Object.fromEntries(lotes.map((l) => [l.id, l]));
+  const conciliacionesRaw = await db.select().from(conciliacionesPlanta);
   const conciliaciones = conciliacionesRaw
     .map((c) => {
       const lote = loteById[c.loteId];
@@ -81,7 +83,47 @@ async function cargarDatosElDorado() {
     })
     .sort((a, b) => b.fecha.localeCompare(a.fecha));
 
-  return { elDorado, granjas, galpones, galponPorId, granjaPorId, lotesActivos, lotesCerrados, eventosPorLote, tabla, conciliaciones };
+  // Repositorio de Evidencias — cada foto adjunta en el galponero
+  // (Mortalidad, Descarte, Consumo ABA, Pesaje) queda ligada al evento que
+  // la originó; acá se junta con el lote/galpón/granja para que Gerencia y
+  // Coordinación la puedan revisar por proceso, sin tener que ir campo por
+  // campo. Es lo que en el diagrama de navegación del cliente aparece como
+  // "Evidencia Fotográfica y Sincronización".
+  const evidenciasRaw = loteIds.length
+    ? await db
+        .select({
+          id: evidenciasPollo.id,
+          url: evidenciasPollo.url,
+          nombreArchivo: evidenciasPollo.nombreArchivo,
+          creadoEn: evidenciasPollo.creadoEn,
+          tipo: loteEventosPollo.tipo,
+          fecha: loteEventosPollo.fecha,
+          loteId: loteEventosPollo.loteId,
+        })
+        .from(evidenciasPollo)
+        .innerJoin(loteEventosPollo, eq(loteEventosPollo.id, evidenciasPollo.loteEventoId))
+        .where(inArray(loteEventosPollo.loteId, loteIds))
+    : [];
+  const evidencias = evidenciasRaw
+    .map((e) => {
+      const lote = loteById[e.loteId];
+      const galpon = lote ? galponPorId[lote.ubicacionId] : undefined;
+      const granja = galpon?.padreId ? granjaPorId[galpon.padreId] : undefined;
+      return {
+        id: e.id,
+        url: e.url,
+        nombreArchivo: e.nombreArchivo,
+        creadoEn: e.creadoEn,
+        tipo: e.tipo,
+        fecha: e.fecha,
+        loteCodigo: lote?.codigo ?? "—",
+        galponNombre: galpon?.nombre ?? "—",
+        granjaNombre: granja?.nombre ?? "—",
+      };
+    })
+    .sort((a, b) => String(b.creadoEn).localeCompare(String(a.creadoEn)));
+
+  return { elDorado, granjas, galpones, galponPorId, granjaPorId, lotesActivos, lotesCerrados, eventosPorLote, tabla, conciliaciones, evidencias };
 }
 
 export default async function PolloPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
@@ -131,6 +173,7 @@ export default async function PolloPage({ searchParams }: { searchParams: Promis
         {datos && tab === "lotes" && <LotesTab {...datos} />}
         {datos && tab === "estandar" && <EstandarGeneticoTable filas={datos.tabla} />}
         {datos && tab === "conciliacion" && <ConciliacionPanel conciliaciones={datos.conciliaciones} puedeAprobar />}
+        {datos && tab === "evidencias" && <EvidenciasPanel evidencias={datos.evidencias} />}
       </div>
     </div>
   );

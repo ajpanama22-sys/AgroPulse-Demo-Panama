@@ -57,16 +57,29 @@ export async function POST(req: Request) {
 
   const [evento] = await db.insert(loteEventosPollo).values({ ...base, ...valores }).returning();
 
+  // El evento ya quedó guardado arriba — si la subida de fotos falla (p.ej.
+  // falta BLOB_READ_WRITE_TOKEN en este ambiente), NO se debe tirar toda la
+  // respuesta como error: el cliente offline (`enviarOEncolar`) reintentaría
+  // el POST completo más tarde y duplicaría el evento. Se responde ok igual
+  // y se informa qué fotos no se pudieron subir.
   const fotos = fd.getAll("fotos").filter((f): f is File => f instanceof File && f.size > 0);
+  let fotosSubidas = 0;
+  let errorFotos: string | null = null;
   if (fotos.length > 0) {
-    const subidas = await Promise.all(
-      fotos.map(async (foto) => {
-        const blob = await put(`pollo/${loteId}/${evento.id}-${foto.name}`, foto, { access: "public" });
-        return { loteEventoId: evento.id, url: blob.url, nombreArchivo: foto.name };
-      })
-    );
-    await db.insert(evidenciasPollo).values(subidas);
+    try {
+      const subidas = await Promise.all(
+        fotos.map(async (foto) => {
+          const blob = await put(`pollo/${loteId}/${evento.id}-${foto.name}`, foto, { access: "public" });
+          return { loteEventoId: evento.id, url: blob.url, nombreArchivo: foto.name };
+        })
+      );
+      await db.insert(evidenciasPollo).values(subidas);
+      fotosSubidas = subidas.length;
+    } catch (err) {
+      errorFotos = err instanceof Error ? err.message : "No se pudo subir la evidencia fotográfica";
+      console.error("[pollo/eventos] fallo al subir evidencia fotográfica:", errorFotos);
+    }
   }
 
-  return NextResponse.json({ ok: true, evento });
+  return NextResponse.json({ ok: true, evento, fotosSubidas, fotosTotal: fotos.length, errorFotos });
 }
