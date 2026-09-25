@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
 import { enviarOEncolar, listarPendientesPollo, sincronizarPendientesPollo } from "@/lib/offline-queue-pollo";
 import InstallPwaButton from "@/components/InstallPwaButton";
@@ -167,10 +168,14 @@ export default function CampoPolloApp({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const router = useRouter();
   const asignacion = "galponId" in pantalla ? asignaciones.find((a) => a.galponId === pantalla.galponId) : undefined;
 
+  // Volver del formulario de Apertura (galpón SIN lote todavía) tiene que
+  // ir a "Mis Granjas", no a la pantalla de detalle — esa asume que ya
+  // existe un lote activo y se rompía en blanco (el bug de "no hay volver").
   function volver() {
-    setPantalla(asignacion ? { vista: "detalle", galponId: asignacion.galponId } : { vista: "home" });
+    setPantalla(asignacion?.lote ? { vista: "detalle", galponId: asignacion.galponId } : { vista: "home" });
   }
 
   async function despues(resultado: "servidor" | "local") {
@@ -178,18 +183,45 @@ export default function CampoPolloApp({
     await refrescarPendientes();
     setTimeout(() => setUltimoGuardado(""), 2500);
     volver();
+    router.refresh();
+  }
+
+  const TITULO_PANTALLA: Record<Pantalla["vista"], string> = {
+    home: "",
+    detalle: asignacion ? `${asignacion.granjaNombre} · ${asignacion.galponNombre}` : "Galpón",
+    apertura: "Apertura de Lote",
+    mortalidad: "Captura de Mortalidad",
+    descarte: "Captura de Descarte",
+    alimento: "Captura de Consumo (ABA)",
+    pesaje: "Captura de Pesaje",
+    cierre: "Cierre de Lote",
+  };
+  const enHome = pantalla.vista === "home";
+  function atras() {
+    if (pantalla.vista === "detalle") setPantalla({ vista: "home" });
+    else volver();
   }
 
   return (
     <div className="mx-auto flex min-h-screen max-w-md flex-col bg-bg">
       <header className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-panel px-4 py-3">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-text-faint">AgroPulse · Galponero</p>
-          <p className="font-display text-lg font-bold text-charcoal">{usuario.nombre}</p>
-        </div>
+        {enHome ? (
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-text-faint">AgroPulse · Galponero</p>
+            <p className="font-display text-lg font-bold text-charcoal">{usuario.nombre}</p>
+          </div>
+        ) : (
+          <button onClick={atras} className="flex min-w-0 items-center gap-2 text-left">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-panel-2 text-lg font-bold text-charcoal">‹</span>
+            <span className="min-w-0">
+              <span className="block text-[10px] font-semibold uppercase tracking-wide text-text-faint">Volver</span>
+              <span className="block truncate text-sm font-bold text-charcoal">{TITULO_PANTALLA[pantalla.vista]}</span>
+            </span>
+          </button>
+        )}
         <button
           onClick={sincronizar}
-          className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold ${pendientesCount > 0 ? "bg-orange-dim text-orange" : "bg-[var(--success-dim)] text-success"}`}
+          className={`shrink-0 flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold ${pendientesCount > 0 ? "bg-orange-dim text-orange" : "bg-[var(--success-dim)] text-success"}`}
         >
           {syncEstado === "syncing" ? "Sincronizando…" : pendientesCount > 0 ? `${pendientesCount} por enviar` : "Al día"}
         </button>

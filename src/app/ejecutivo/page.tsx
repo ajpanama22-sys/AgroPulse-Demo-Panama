@@ -95,6 +95,7 @@ export default async function EjecutivoPage() {
       return (
         <EjecutivoPolloApp
           nombreUsuario={session.user.name ?? "Directivo"}
+          rol={session.user.rol}
           avesVivasTotal={panel.avesVivasTotal}
           mortalidadProm={panel.mortalidadProm}
           conversionProm={panel.conversionProm}

@@ -42,6 +42,7 @@ const TONE_BG: Record<string, string> = {
 // (enlace abajo), que es donde Coordinación hace el trabajo fino.
 export default function EjecutivoPolloApp({
   nombreUsuario,
+  rol,
   avesVivasTotal,
   mortalidadProm,
   conversionProm,
@@ -51,6 +52,7 @@ export default function EjecutivoPolloApp({
   conciliacionesBloqueadas,
 }: {
   nombreUsuario: string;
+  rol: string;
   avesVivasTotal: number;
   mortalidadProm: number;
   conversionProm: number | null;
@@ -123,9 +125,16 @@ export default function EjecutivoPolloApp({
         </div>
 
         <div className="mt-6 flex items-center justify-between">
-          <Link href="/pollo" className="text-xs font-semibold text-orange">
-            Ver portal completo →
-          </Link>
+          {/* Gerencia queda encerrada en este panel móvil a nivel de
+             middleware (nunca navega al portal de escritorio completo) —
+             ese link solo tiene sentido, y solo funciona, para Coordinación. */}
+          {rol !== "gerencial" ? (
+            <Link href="/pollo" className="text-xs font-semibold text-orange">
+              Ver portal completo →
+            </Link>
+          ) : (
+            <span />
+          )}
           <SignOutButton className="text-xs text-text-faint" />
         </div>
         <p className="mt-1 text-[10px] text-text-faint">Conectado como {nombreUsuario}</p>
