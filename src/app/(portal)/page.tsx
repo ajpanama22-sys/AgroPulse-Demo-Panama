@@ -1,23 +1,24 @@
 import Link from "next/link";
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/lib/db/client";
-import { alertas, capturas, ubicaciones, empresas, edrLineas } from "@/lib/db/schema";
-import { Card, PageHeader, StatTile, Badge } from "@/components/ui";
+import { alertas, capturas, ubicaciones, edrLineas } from "@/lib/db/schema";
+import { Card, PageHeader, Badge } from "@/components/ui";
 import { theme, unidadColor } from "@/lib/theme";
 import ProductIcon3D from "@/components/ProductIcon3D";
 import OrbitBars3D from "@/components/OrbitBars3D";
 import Bars3D from "@/components/Bars3D";
 import ReportButtons from "@/components/ReportButtons";
+import { unidadesPorEmpresa } from "@/lib/reportes-data";
 
 function fmtMoney(n: number) {
   return `$${n.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
 }
 
 export default async function DashboardPage() {
-  const [alertasActivas, ubic, empresasAll, edr] = await Promise.all([
+  const [alertasActivas, ubic, unidadesInfo, edr] = await Promise.all([
     db.select().from(alertas).where(eq(alertas.resuelta, false)).orderBy(desc(alertas.creadaEn)),
     db.select().from(ubicaciones),
-    db.select().from(empresas),
+    unidadesPorEmpresa(),
     db.select().from(edrLineas).where(eq(edrLineas.periodo, "2026-07")),
   ]);
 
@@ -37,24 +38,16 @@ export default async function DashboardPage() {
   const valPollo = (capPollo[0]?.valores ?? {}) as Record<string, { causado: number }>;
   const valCerdo = (capCerdo[0]?.valores ?? {}) as Record<string, { causado: number }>;
 
-  const empresaNombre = Object.fromEntries(empresasAll.map((e) => [e.id, e.nombre]));
-  const unidadPorEmpresa: Record<string, "huevos" | "pollo" | "cerdo"> = {};
-  for (const e of empresasAll) {
-    if (e.nombre.includes("HUEVOS")) unidadPorEmpresa[e.id] = "huevos";
-    else if (e.nombre.includes("DORADO")) unidadPorEmpresa[e.id] = "pollo";
-    else if (e.nombre.includes("CERDOS")) unidadPorEmpresa[e.id] = "cerdo";
-  }
-
   const ebitdaPorEmpresa = edr.filter((l) => l.concepto === "(=) EBITDA");
   const orbitData = ebitdaPorEmpresa.map((l) => ({
-    label: empresaNombre[l.empresaId]?.split(" - ")[0] ?? "—",
+    label: unidadesInfo[l.empresaId]?.empresaNombre ?? "—",
     value: Number(l.causado),
-    color: unidadColor[unidadPorEmpresa[l.empresaId] ?? "huevos"],
+    color: unidadColor[unidadesInfo[l.empresaId]?.unidadSlug ?? "huevos"],
   }));
 
   const conceptosOrden = Array.from(new Set(edr.map((l) => l.concepto))).sort((a, b) => (edr.find((l) => l.concepto === a)?.orden ?? 0) - (edr.find((l) => l.concepto === b)?.orden ?? 0));
   const empresasEnOrden = ["huevos", "pollo", "cerdo"] as const;
-  const empresaIdPorUnidad = Object.fromEntries(Object.entries(unidadPorEmpresa).map(([id, u]) => [u, id]));
+  const empresaIdPorUnidad = Object.fromEntries(Object.values(unidadesInfo).map((u) => [u.unidadSlug, u.empresaId]));
 
   const totalConsolidadoCausado = ebitdaPorEmpresa.reduce((s, l) => s + Number(l.causado), 0);
   const totalConsolidadoMeta = ebitdaPorEmpresa.reduce((s, l) => s + Number(l.meta), 0);

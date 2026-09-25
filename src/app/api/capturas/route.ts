@@ -3,7 +3,8 @@ import { and, eq } from "drizzle-orm";
 import { put } from "@vercel/blob";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db/client";
-import { capturas, capturaEvidencias, ubicaciones, auditoria } from "@/lib/db/schema";
+import { capturas, capturaEvidencias, ubicaciones, auditoria, lotesPollo, loteEventosPollo } from "@/lib/db/schema";
+import { avesVivas, edadDelLote, type LotePollo, type EventoLote } from "@/lib/analisis-pollo";
 
 // Un registro por ubicación+día — reenviar el mismo día (reintento de
 // sincronización offline, o el operador corrigiendo un valor) actualiza
@@ -59,6 +60,61 @@ export async function POST(req: Request) {
     entidadId: captura.id,
     detalle: `${ubicacion.nombre} · ${fecha}${fotos.length ? ` · ${fotos.length} evidencia(s)` : ""}`,
   });
+
+  // --- Pollo de Engorde: si esta ubicación tiene un lote activo, además del
+  // registro genérico de arriba, generamos el EVENTO real del lote
+  // (mortalidad / pesaje). Sin esto, lo que un operador capturaba acá
+  // quedaba aislado — no se reflejaba en el Resumen del módulo Pollo ni en
+  // el Panel Ejecutivo que ve gerencia. Con esto, la captura de campo sube
+  // en vivo hasta ahí.
+  const [loteActivo] = await db
+    .select()
+    .from(lotesPollo)
+    .where(and(eq(lotesPollo.ubicacionId, ubicacionId), eq(lotesPollo.estado, "activo")))
+    .limit(1);
+
+  if (loteActivo) {
+    const lote = loteActivo as unknown as LotePollo;
+    const eventosLote = (await db.select().from(loteEventosPollo).where(eq(loteEventosPollo.loteId, loteActivo.id))) as unknown as EventoLote[];
+    const fechaEvento = creadoEnDispositivo.toISOString().slice(0, 10);
+    const edadDiasEvento = edadDelLote(lote, creadoEnDispositivo);
+
+    const pctMortalidadDia = Number(valores.mortalidad?.causado);
+    if (Number.isFinite(pctMortalidadDia) && pctMortalidadDia > 0) {
+      const vivasActuales = avesVivas(lote, eventosLote);
+      const cantidad = Math.max(0, Math.round((pctMortalidadDia / 100) * vivasActuales));
+      if (cantidad > 0) {
+        await db.insert(loteEventosPollo).values({
+          loteId: loteActivo.id,
+          fecha: fechaEvento,
+          tipo: "mortalidad",
+          edadDias: edadDiasEvento,
+          mortalidadCantidad: cantidad,
+          mortalidadCausa: "otra",
+          observaciones: "Capturado desde la PWA de Campo",
+          capturadoPorId: session.user.id,
+          origen,
+          creadoEnDispositivo,
+        });
+      }
+    }
+
+    const pesoKgDia = Number(valores.peso_promedio?.causado);
+    if (Number.isFinite(pesoKgDia) && pesoKgDia > 0) {
+      await db.insert(loteEventosPollo).values({
+        loteId: loteActivo.id,
+        fecha: fechaEvento,
+        tipo: "pesaje",
+        edadDias: edadDiasEvento,
+        pesoMuestraGr: String(Math.round(pesoKgDia * 1000)),
+        tamanoMuestra: 50,
+        observaciones: "Capturado desde la PWA de Campo",
+        capturadoPorId: session.user.id,
+        origen,
+        creadoEnDispositivo,
+      });
+    }
+  }
 
   return NextResponse.json({ ok: true, capturaId: captura.id });
 }

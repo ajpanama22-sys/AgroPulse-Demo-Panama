@@ -46,13 +46,26 @@ function fmtPct(p: number | null) {
   return `${p >= 0 ? "+" : ""}${(p * 100).toFixed(1)}%`;
 }
 
+// Precalcula el offset acumulado de cada porción fuera del render — mutar
+// una variable capturada dentro del .map() del JSX es lo que el compilador
+// de React (eslint-plugin-react-hooks) marca como error.
+function offsetsAcumulados(data: { value: number }[], circumference: number, total: number): number[] {
+  const offsets: number[] = [];
+  let offset = 0;
+  for (const d of data) {
+    offsets.push(offset);
+    offset += (Math.max(d.value, 0) / total) * circumference;
+  }
+  return offsets;
+}
+
 function DonutSvg({ data, size = 130 }: { data: { label: string; value: number; color: string }[]; size?: number }) {
   const r = size / 2 - 14;
   const cx = size / 2;
   const cy = size / 2;
   const circumference = 2 * Math.PI * r;
   const total = data.reduce((s, d) => s + Math.max(d.value, 0), 0) || 1;
-  let offset = 0;
+  const offsets = offsetsAcumulados(data, circumference, total);
   return (
     <Svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
       <Circle cx={cx} cy={cy} r={r} stroke={BORDER} strokeWidth={16} fill="none" />
@@ -60,8 +73,8 @@ function DonutSvg({ data, size = 130 }: { data: { label: string; value: number; 
         const frac = Math.max(d.value, 0) / total;
         const len = frac * circumference;
         const dash = `${Math.max(len - 2, 0)} ${circumference - len + 2}`;
-        const offsetDeg = (offset / circumference) * 360;
-        const el = (
+        const offsetDeg = (offsets[i] / circumference) * 360;
+        return (
           <Circle
             key={i}
             cx={cx}
@@ -74,8 +87,6 @@ function DonutSvg({ data, size = 130 }: { data: { label: string; value: number; 
             transform={`rotate(${-90 + offsetDeg} ${cx} ${cy})`}
           />
         );
-        offset += len;
-        return el;
       })}
     </Svg>
   );

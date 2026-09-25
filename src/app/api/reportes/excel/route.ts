@@ -1,64 +1,84 @@
+// Reporte Financiero (Excel) — Estado de Resultados por unidad de negocio
+// y consolidado, para un rango de períodos. Reemplaza el export anterior
+// (que traía un período fijo hardcodeado a "2026-07" y mezclaba capturas
+// de campo e inventario en el mismo archivo, que ahora tienen su propio
+// reporte). Ahora es "para trabajar sobre ellos": una fila por partida x
+// empresa x período, lista para tabla dinámica en Excel, más una hoja ya
+// resumida por unidad/consolidado.
 import * as XLSX from "xlsx";
-import { eq } from "drizzle-orm";
+import { NextRequest } from "next/server";
 import { auth } from "@/lib/auth";
-import { db } from "@/lib/db/client";
-import { edrLineas, empresas, capturas, ubicaciones, insumos, lecturasInsumo, organizacion } from "@/lib/db/schema";
+import { edrEnRango, getOrganizacion, periodosEdrDisponibles, unidadesPorEmpresa, fmtFechaLarga } from "@/lib/reportes-data";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const session = await auth();
   if (!session?.user) return new Response("No autenticado", { status: 401 });
 
-  const periodo = "2026-07";
-  const [edr, empresasAll, todasCapturas, ubic, insumosAll, lecturas, [org]] = await Promise.all([
-    db.select().from(edrLineas).where(eq(edrLineas.periodo, periodo)),
-    db.select().from(empresas),
-    db.select().from(capturas),
-    db.select().from(ubicaciones),
-    db.select().from(insumos),
-    db.select().from(lecturasInsumo),
-    db.select().from(organizacion).limit(1),
-  ]);
-  const empresaNombre = Object.fromEntries(empresasAll.map((e) => [e.id, e.nombre]));
-  const ubicNombre = Object.fromEntries(ubic.map((u) => [u.id, u.nombre]));
+  const disponibles = await periodosEdrDisponibles();
+  if (disponibles.length === 0) return new Response("No hay datos de EDR cargados", { status: 404 });
+  const ultimo = disponibles[disponibles.length - 1];
+  const sp = req.nextUrl.searchParams;
+  const desde = sp.get("desde") && disponibles.includes(sp.get("desde")!) ? sp.get("desde")! : disponibles[0];
+  const hasta = sp.get("hasta") && disponibles.includes(sp.get("hasta")!) ? sp.get("hasta")! : ultimo;
+
+  const [lineas, unidadesInfo, org] = await Promise.all([edrEnRango(desde, hasta), unidadesPorEmpresa(), getOrganizacion()]);
 
   const wb = XLSX.utils.book_new();
 
-  const portadaSheet = XLSX.utils.aoa_to_sheet([
-    ["AgroPulse — Reporte de Datos"],
-    ["Cliente", org?.nombre ?? "—"],
-    ["Dirección", org?.direccion ?? "—"],
-    ["Período", periodo],
-    ["Generado", new Date().toLocaleString("es-PA")],
-  ]);
-  XLSX.utils.book_append_sheet(wb, portadaSheet, "Portada");
+  XLSX.utils.book_append_sheet(
+    wb,
+    XLSX.utils.aoa_to_sheet([
+      ["AgroPulse — Reporte Financiero"],
+      ["Cliente", org?.nombre ?? "—"],
+      ["Dirección", org?.direccion ?? "—"],
+      ["Período", desde === hasta ? desde : `${desde} a ${hasta}`],
+      ["Generado", fmtFechaLarga()],
+    ]),
+    "Portada",
+  );
 
-  const edrRows = edr.map((l) => ({ Empresa: empresaNombre[l.empresaId], Partida: l.concepto, Meta: Number(l.meta), Causado: Number(l.causado), "%": l.meta ? Math.round((Number(l.causado) / Number(l.meta)) * 100) : "" }));
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(edrRows), "EDR Consolidado");
+  // Detalle: una fila por partida x empresa x período — el formato que
+  // realmente sirve para armar una tabla dinámica en Excel.
+  const detalleRows = lineas
+    .map((l) => {
+      const u = unidadesInfo[l.empresaId];
+      return {
+        Período: l.periodo,
+        "Unidad de Negocio": u?.unidadNombre ?? "—",
+        Empresa: u?.empresaNombre ?? "—",
+        Partida: l.concepto,
+        Orden: l.orden,
+        Subtotal: l.esSubtotal ? "Sí" : "No",
+        Meta: Number(l.meta),
+        Causado: Number(l.causado),
+        "% de Meta": Number(l.meta) ? +((Number(l.causado) / Number(l.meta)) * 100).toFixed(1) : "",
+      };
+    })
+    .sort((a, b) => a.Período.localeCompare(b.Período) || a.Orden - b.Orden || a["Unidad de Negocio"].localeCompare(b["Unidad de Negocio"]));
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(detalleRows), "EDR Detalle");
 
-  const capturaRows = todasCapturas.map((c) => {
-    const valores = c.valores as Record<string, { meta?: number; causado: number }>;
-    const base: Record<string, string | number> = { Ubicación: ubicNombre[c.ubicacionId] ?? "—", Fecha: c.fecha };
-    for (const [clave, v] of Object.entries(valores)) {
-      base[`${clave} (meta)`] = v.meta ?? "";
-      base[`${clave} (causado)`] = v.causado;
+  // Resumen: partidas sumadas en todo el rango, una columna por unidad +
+  // consolidado — la vista que un ejecutivo abre primero.
+  const unidadesOrdenadas = Array.from(new Set(Object.values(unidadesInfo).sort((a, b) => a.orden - b.orden).map((u) => u.unidadNombre)));
+  const conceptos = Array.from(new Set(lineas.map((l) => l.concepto))).sort((a, b) => (lineas.find((l) => l.concepto === a)?.orden ?? 0) - (lineas.find((l) => l.concepto === b)?.orden ?? 0));
+  const resumenRows = conceptos.map((concepto) => {
+    const fila: Record<string, string | number> = { Partida: concepto };
+    let total = 0;
+    for (const unidadNombre of unidadesOrdenadas) {
+      const suma = lineas.filter((l) => l.concepto === concepto && unidadesInfo[l.empresaId]?.unidadNombre === unidadNombre).reduce((s, l) => s + Number(l.causado), 0);
+      fila[unidadNombre] = suma;
+      total += suma;
     }
-    return base;
+    fila["Consolidado"] = total;
+    return fila;
   });
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(capturaRows), "Capturas de Campo");
-
-  const insumoRows = insumosAll.map((i) => {
-    const lect = lecturas.find((l) => l.insumoId === i.id);
-    const inv = Number(lect?.inventarioActual ?? 0);
-    const consumo = Number(lect?.consumoDiarioPromedio ?? 1);
-    return { Insumo: i.nombre, "Inventario Actual (Tm)": inv, "Consumo Diario Prom. (Tm)": consumo, "Alcance (días)": +(inv / consumo).toFixed(1), "Mínimo (días)": i.minimoDias };
-  });
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(insumoRows), "Inventario Insumos");
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(resumenRows), "EDR Resumen por Unidad");
 
   const buffer = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
   return new Response(new Uint8Array(buffer), {
     headers: {
       "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      "Content-Disposition": `attachment; filename="AgroPulse-Reporte-${periodo}.xlsx"`,
+      "Content-Disposition": `attachment; filename="AgroPulse-Financiero-${desde}_a_${hasta}.xlsx"`,
     },
   });
 }
