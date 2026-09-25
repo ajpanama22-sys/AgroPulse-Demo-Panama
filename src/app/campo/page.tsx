@@ -1,12 +1,20 @@
 import { and, desc, eq } from "drizzle-orm";
+import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db/client";
-import { ubicaciones, ubicacionIndicadores, indicadores, capturas, empresas, unidadesNegocio } from "@/lib/db/schema";
+import { ubicaciones, ubicacionIndicadores, indicadores, capturas, empresas, unidadesNegocio, asignacionesCampo } from "@/lib/db/schema";
 import CampoCaptureForm from "@/components/CampoCaptureForm";
 
 export default async function CampoPage() {
   const session = await auth();
   const user = session!.user;
+
+  // El operario de Pollo de Engorde (El Dorado) tiene sus galpones en
+  // `asignacionesCampo`, no en `usuarios.ubicacionId` — un usuario con
+  // asignaciones ahí va siempre a la app de Pollo, que es un flujo de
+  // captura completamente distinto (lotes/eventos, no indicadores genéricos).
+  const tieneGalponesPollo = await db.select({ id: asignacionesCampo.id }).from(asignacionesCampo).where(eq(asignacionesCampo.usuarioId, user.id)).limit(1);
+  if (tieneGalponesPollo.length > 0) redirect("/campo/pollo");
 
   const listaUbicaciones = await db
     .select({ id: ubicaciones.id, nombre: ubicaciones.nombre, subUnidad: ubicaciones.subUnidad, qrToken: ubicaciones.qrToken, unidadNombre: unidadesNegocio.nombre })

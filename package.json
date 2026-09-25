@@ -10,7 +10,8 @@
     "db:generate": "drizzle-kit generate",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
-    "seed:db": "node --env-file=.env.local --import tsx scripts/seed-db.mts"
+    "seed:db": "node --env-file=.env.local --import tsx scripts/seed-db.mts",
+    "seed:el-dorado": "node --env-file=.env.local --import tsx scripts/seed-el-dorado.mts"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",

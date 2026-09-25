@@ -11,7 +11,7 @@ declare module "next-auth" {
       id: string;
       name?: string | null;
       email?: string | null;
-      rol: "admin" | "gerencial" | "campo";
+      rol: "admin" | "gerencial" | "coordinacion" | "supervisor" | "campo";
       empresaId: string | null;
       ubicacionId: string | null;
     };

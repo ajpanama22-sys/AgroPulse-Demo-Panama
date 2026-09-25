@@ -1,11 +1,80 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db/client";
-import { alertas, capturas, ubicaciones, empresas, edrLineas } from "@/lib/db/schema";
+import { alertas, capturas, ubicaciones, empresas, edrLineas, lotesPollo, loteEventosPollo, estandarGenetico, conciliacionesPlanta } from "@/lib/db/schema";
 import { unidadColor } from "@/lib/theme";
 import ProductIcon3D from "@/components/ProductIcon3D";
 import InstallPwaButton from "@/components/InstallPwaButton";
 import SignOutButton from "@/components/SignOutButton";
+import EjecutivoPolloApp from "@/components/EjecutivoPolloApp";
+import { resumirLote, construirIndicadoresDashboard, estadoSemaforo, type LotePollo, type EventoLote, type EstandarGeneticoPunto } from "@/lib/analisis-pollo";
+
+const HOY_DEMO_POLLO = new Date("2026-09-18T00:00:00Z");
+
+// El Dorado tiene su propia versión del panel ejecutivo (KPIs de Pollo de
+// Engorde en vez del EDR multi-línea de Agroindustrias del Istmo) — se
+// distingue por la empresa del usuario logueado, no por rol, porque
+// "gerencial" existe en ambos demos que conviven en la misma base.
+async function cargarPanelElDorado(empresaId: string) {
+  const todasUbicaciones = await db.select().from(ubicaciones).where(eq(ubicaciones.empresaId, empresaId));
+  const granjas = todasUbicaciones.filter((u) => u.tipo === "granja");
+  const galpones = todasUbicaciones.filter((u) => u.tipo === "galpon");
+  const granjaPorId = Object.fromEntries(granjas.map((g) => [g.id, g]));
+  const galponPorId = Object.fromEntries(galpones.map((g) => [g.id, g]));
+  const galponIds = galpones.map((g) => g.id);
+
+  const lotes = galponIds.length ? await db.select().from(lotesPollo).where(inArray(lotesPollo.ubicacionId, galponIds)) : [];
+  const lotesActivos = lotes.filter((l) => l.estado === "activo") as unknown as LotePollo[];
+  const loteIds = lotesActivos.map((l) => l.id);
+
+  const eventos = loteIds.length ? await db.select().from(loteEventosPollo).where(inArray(loteEventosPollo.loteId, loteIds)) : [];
+  const eventosPorLote: Record<string, EventoLote[]> = {};
+  for (const e of eventos) (eventosPorLote[e.loteId] ??= []).push(e as unknown as EventoLote);
+
+  const tablaRaw = await db.select().from(estandarGenetico);
+  const tabla: EstandarGeneticoPunto[] = tablaRaw.map((f) => ({ genetica: f.genetica, edadDias: f.edadDias, pesoEstandarGr: Number(f.pesoEstandarGr) }));
+
+  const resumenes = lotesActivos.map((l) => resumirLote(l, eventosPorLote[l.id] ?? [], tabla, HOY_DEMO_POLLO));
+  const indicadores = construirIndicadoresDashboard(resumenes);
+
+  const avesVivasTotal = resumenes.reduce((s, r) => s + r.saldo, 0);
+  const mortalidadProm = resumenes.length ? resumenes.reduce((s, r) => s + r.pctMortalidad, 0) / resumenes.length : 0;
+  const conversionVals = resumenes.map((r) => r.conversion).filter((v): v is number => v !== null);
+  const conversionProm = conversionVals.length ? conversionVals.reduce((s, v) => s + v, 0) / conversionVals.length : null;
+  const pctCumplGlobal = indicadores.length ? indicadores.reduce((s, i) => s + i.pctCumplimiento, 0) / indicadores.length : 0;
+
+  const granjasUi = resumenes
+    .map((r) => {
+      const galpon = galponPorId[r.lote.ubicacionId];
+      const granja = galpon?.padreId ? granjaPorId[galpon.padreId] : undefined;
+      return {
+        granjaId: granja?.id ?? r.lote.id,
+        granjaNombre: granja?.nombre ?? "—",
+        loteCodigo: r.lote.codigo,
+        edad: r.edad,
+        pctCumplimientoLote: r.pctCumplimientoLote,
+        semaforo: estadoSemaforo(r.pctCumplimientoLote),
+      };
+    })
+    .sort((a, b) => a.pctCumplimientoLote - b.pctCumplimientoLote);
+
+  const loteById = Object.fromEntries(lotes.map((l) => [l.id, l]));
+  const conciliacionesRaw = await db.select().from(conciliacionesPlanta).where(eq(conciliacionesPlanta.estado, "bloqueado"));
+  const conciliacionesBloqueadas = conciliacionesRaw.map((c) => {
+    const lote = loteById[c.loteId];
+    const galpon = lote ? galponPorId[lote.ubicacionId] : undefined;
+    const granja = galpon?.padreId ? granjaPorId[galpon.padreId] : undefined;
+    return {
+      id: c.id,
+      loteCodigo: lote?.codigo ?? "—",
+      granjaNombre: granja?.nombre ?? "—",
+      desviacionAvesPct: c.desviacionAvesPct,
+      desviacionPesoPct: c.desviacionPesoPct,
+    };
+  });
+
+  return { avesVivasTotal, mortalidadProm, conversionProm, pctCumplGlobal, indicadores, granjasUi, conciliacionesBloqueadas };
+}
 
 function fmtMoney(n: number) {
   return `$${n.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
@@ -13,6 +82,26 @@ function fmtMoney(n: number) {
 
 export default async function EjecutivoPage() {
   const session = await auth();
+
+  if (session?.user.empresaId) {
+    const [empresa] = await db.select().from(empresas).where(eq(empresas.id, session.user.empresaId));
+    if (empresa?.nombre === "Agropecuaria El Dorado — División de Grupo JHS") {
+      const panel = await cargarPanelElDorado(empresa.id);
+      return (
+        <EjecutivoPolloApp
+          nombreUsuario={session.user.name ?? "Directivo"}
+          avesVivasTotal={panel.avesVivasTotal}
+          mortalidadProm={panel.mortalidadProm}
+          conversionProm={panel.conversionProm}
+          pctCumplGlobal={panel.pctCumplGlobal}
+          indicadores={panel.indicadores}
+          granjas={panel.granjasUi}
+          conciliacionesBloqueadas={panel.conciliacionesBloqueadas}
+        />
+      );
+    }
+  }
+
   const periodo = "2026-07";
   const [alertasActivas, ubic, empresasAll, edr] = await Promise.all([
     db.select().from(alertas).where(eq(alertas.resuelta, false)).orderBy(desc(alertas.creadaEn)),

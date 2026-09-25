@@ -1,4 +1,4 @@
-import { pgTable, text, uuid, timestamp, boolean, integer, numeric, jsonb, date, pgEnum, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, text, uuid, timestamp, boolean, integer, numeric, jsonb, date, pgEnum, uniqueIndex, foreignKey } from "drizzle-orm/pg-core";
 
 // AgroPulse se despliega on-premise/por-cliente (una instancia = una
 // empresa) — esta fila única de configuración es lo que la "matricula" en
@@ -19,11 +19,13 @@ export const organizacion = pgTable("organizacion", {
 // ubicación) para que escalar a un segundo grupo agroindustrial en el
 // futuro no requiera rediseñar el esquema, solo agregar filas.
 
-export const rolUsuario = pgEnum("rol_usuario", ["admin", "gerencial", "campo"]);
+export const rolUsuario = pgEnum("rol_usuario", ["admin", "gerencial", "coordinacion", "supervisor", "campo"]);
 export const tipoUbicacion = pgEnum("tipo_ubicacion", ["granja", "galpon", "corral", "planta"]);
 export const tipoValorIndicador = pgEnum("tipo_valor_indicador", ["numero", "porcentaje", "moneda", "peso_kg", "peso_gr"]);
 export const origenCaptura = pgEnum("origen_captura", ["qr", "manual"]);
 export const tipoEvidencia = pgEnum("tipo_evidencia", ["foto", "documento"]);
+
+export const estadoDatosGranja = pgEnum("estado_datos_granja", ["completo", "por_completar"]);
 
 export const unidadesNegocio = pgTable("unidades_negocio", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -40,15 +42,36 @@ export const empresas = pgTable("empresas", {
   nombre: text("nombre").notNull(), // p.ej. "AGROPECUARIA EL DORADO"
 });
 
+// El Dorado (Pollo de Engorde) agrega una jerarquia Granja -> Galpon que
+// las demas lineas no necesitan: `padreId` es la auto-referencia de un
+// galpon hacia su granja (null en toda ubicacion que no sea galpon).
+// `supervisorNombre`/`personalAsociado`/`estadoDatos` solo aplican a
+// ubicaciones tipo 'granja' (13 granjas precargadas por El Dorado).
 export const ubicaciones = pgTable("ubicaciones", {
   id: uuid("id").primaryKey().defaultRandom(),
   empresaId: uuid("empresa_id").notNull().references(() => empresas.id),
+  padreId: uuid("padre_id"),
   nombre: text("nombre").notNull(), // p.ej. "Cojedes", "Táchira", "Reproductoras"
   tipo: tipoUbicacion("tipo").notNull(),
   subUnidad: text("sub_unidad"), // p.ej. "REPRODUCTORAS" dentro de Pollo
   qrToken: text("qr_token").notNull().unique(),
   activa: boolean("activa").notNull().default(true),
-});
+  supervisorNombre: text("supervisor_nombre"),
+  personalAsociado: integer("personal_asociado"),
+  estadoDatos: estadoDatosGranja("estado_datos"),
+}, (t) => [
+  foreignKey({ columns: [t.padreId], foreignColumns: [t.id], name: "ubicaciones_padre_fk" }),
+]);
+
+// Operario de campo <-> galpones asignados (muchos a muchos). El resto de
+// las lineas de negocio siguen usando `usuarios.ubicacionId` (una sola
+// ubicacion); el galponero de El Dorado puede tener varios galpones en
+// distintas granjas (ver mockup "Mis Granjas").
+export const asignacionesCampo = pgTable("asignaciones_campo", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  usuarioId: uuid("usuario_id").notNull().references(() => usuarios.id, { onDelete: "cascade" }),
+  ubicacionId: uuid("ubicacion_id").notNull().references(() => ubicaciones.id, { onDelete: "cascade" }),
+}, (t) => [uniqueIndex("asignaciones_campo_uq").on(t.usuarioId, t.ubicacionId)]);
 
 // Catálogo de indicadores por unidad de negocio — un registro de captura
 // guarda sus valores como JSON contra este catálogo, así agregar un
@@ -146,7 +169,7 @@ export const edrLineas = pgTable("edr_lineas", {
 
 export const generaPollo = pgEnum("genetica_pollo", ["cobb_500", "hubbard", "ross"]);
 export const estadoLote = pgEnum("estado_lote", ["activo", "cerrado"]);
-export const tipoEventoLote = pgEnum("tipo_evento_lote", ["mortalidad", "pesaje", "alimento", "saque", "beneficio"]);
+export const tipoEventoLote = pgEnum("tipo_evento_lote", ["mortalidad", "descarte", "pesaje", "alimento", "saque", "beneficio"]);
 export const causaMortalidad = pgEnum("causa_mortalidad", ["ascitis", "problema_patas", "respiratorio", "picaje", "descarte", "otra"]);
 
 // Lote de Pollo de Engorde — la unidad real de trazabilidad del proceso
@@ -190,6 +213,9 @@ export const loteEventosPollo = pgTable("lote_eventos_pollo", {
   // mortalidad
   mortalidadCantidad: integer("mortalidad_cantidad"),
   mortalidadCausa: causaMortalidad("mortalidad_causa"),
+  // descarte — evento propio, separado de mortalidad (ver analisis-pollo.ts)
+  descarteCantidad: integer("descarte_cantidad"),
+  descarteMotivo: text("descarte_motivo"),
   // pesaje muestral
   pesoMuestraGr: numeric("peso_muestra_gr"),
   tamanoMuestra: integer("tamano_muestra"),
@@ -232,4 +258,50 @@ export const alertas = pgTable("alertas", {
   entidadRef: text("entidad_ref"), // id de insumo/ubicacion relacionado, para deep-link
   resuelta: boolean("resuelta").notNull().default(false),
   creadaEn: timestamp("creada_en").notNull().defaultNow(),
+});
+
+
+// Estandar Genetico — curva de peso objetivo por raza y edad (dias).
+// Cobb 500 y Ross 308 comparten la misma curva en la operacion de El
+// Dorado (confirmado por el cliente); Hubbard 1,2 se carga por separado.
+// Ver src/lib/analisis-pollo.ts para las curvas base y su fuente.
+export const estandarGenetico = pgTable("estandar_genetico", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  genetica: generaPollo("genetica").notNull(),
+  edadDias: integer("edad_dias").notNull(),
+  pesoEstandarGr: numeric("peso_estandar_gr").notNull(),
+  fuente: text("fuente"),
+}, (t) => [uniqueIndex("estandar_genetico_genetica_edad_uq").on(t.genetica, t.edadDias)]);
+
+export const estadoConciliacion = pgEnum("estado_conciliacion", ["pendiente", "aprobado", "bloqueado"]);
+
+// Conciliacion con Planta Beneficiadora — cierre de lote (reportado por la
+// granja) contra el reporte de la planta, con tolerancia y bloqueo
+// automatico fuera de rango (historias de usuario de Coordinacion Central).
+export const conciliacionesPlanta = pgTable("conciliaciones_planta", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  loteId: uuid("lote_id").notNull().references(() => lotesPollo.id, { onDelete: "cascade" }),
+  fecha: date("fecha").notNull(),
+  avesReportadasGranja: integer("aves_reportadas_granja").notNull(),
+  kgReportadosGranja: numeric("kg_reportados_granja").notNull(),
+  avesReportadasPlanta: integer("aves_reportadas_planta").notNull(),
+  kgReportadosPlanta: numeric("kg_reportados_planta").notNull(),
+  umbralTolerancia: numeric("umbral_tolerancia").notNull().default("0.02"),
+  desviacionAvesPct: numeric("desviacion_aves_pct").notNull(),
+  desviacionPesoPct: numeric("desviacion_peso_pct").notNull(),
+  estado: estadoConciliacion("estado").notNull().default("pendiente"),
+  aprobadoPorId: uuid("aprobado_por_id").references(() => usuarios.id),
+  aprobadoEn: timestamp("aprobado_en"),
+  creadoEn: timestamp("creado_en").notNull().defaultNow(),
+});
+
+// Evidencia fotografica ligada a UN evento de lote (mortalidad, descarte o
+// pesaje) — distinta de `capturaEvidencias`, que sirve al modulo generico
+// de capturas de las otras lineas de negocio.
+export const evidenciasPollo = pgTable("evidencias_pollo", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  loteEventoId: uuid("lote_evento_id").notNull().references(() => loteEventosPollo.id, { onDelete: "cascade" }),
+  url: text("url").notNull(),
+  nombreArchivo: text("nombre_archivo").notNull(),
+  creadoEn: timestamp("creado_en").notNull().defaultNow(),
 });
