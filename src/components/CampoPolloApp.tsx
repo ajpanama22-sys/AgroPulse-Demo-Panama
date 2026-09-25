@@ -611,47 +611,101 @@ function FormAlimento({ lote, onListo, onCancelar }: { lote: LoteActivoUi; onLis
   );
 }
 
+// Rango físico plausible de peso de un pollo de engorde durante todo el
+// ciclo (0-35 días): por debajo o por encima de esto, el número no puede
+// ser correcto sea cual sea la genética — casi siempre es un error de
+// unidades (p.ej. escribir el promedio en la casilla del total, o kg en
+// vez de gramos), no un lote real. Ver también UMBRAL_ALERTA_PCT abajo.
+const PESO_MIN_PLAUSIBLE_GR = 15;
+const PESO_MAX_PLAUSIBLE_GR = 4000;
+// Desviación (en cualquier sentido) contra el estándar genético del día a
+// partir de la cual NO se deja guardar de un solo toque — obliga a
+// confirmar explícitamente que se revisó la báscula y las unidades.
+const UMBRAL_ALERTA_PCT = 30;
+
 function FormPesaje({ lote, tabla, onListo, onCancelar }: { lote: LoteActivoUi; tabla: EstandarGeneticoPunto[]; onListo: (r: "servidor" | "local") => void; onCancelar: () => void }) {
-  const [tamanoMuestra, setTamanoMuestra] = useState("100");
-  const [pesoMuestraGr, setPesoMuestraGr] = useState("");
+  // Mismo dato que la columna "Peso prom. (g)" de la hoja de Registro de
+  // Granja del cliente: el peso PROMEDIO de un ave, ya calculado por quien
+  // pesa — no un total de muestra a dividir acá. Pedir un "total" fue lo
+  // que causó el dato erróneo que encontró Amauri (escribió el promedio,
+  // el sistema lo tomó como total de 100 aves y salió un "promedio" de
+  // 15 g). "Cantidad de aves en la muestra" ahora es solo para trazabilidad
+  // — no participa en ninguna cuenta que vea el usuario.
+  const [pesoPromedioGr, setPesoPromedioGr] = useState("");
+  const [tamanoMuestra, setTamanoMuestra] = useState("10");
+  const [confirmando, setConfirmando] = useState(false);
   const [enviando, setEnviando] = useState(false);
 
-  const muestra = Number(tamanoMuestra || 0);
-  const totalGr = Number(pesoMuestraGr || 0);
-  const promedioGr = muestra > 0 ? totalGr / muestra : 0;
+  const promedioGr = Number(pesoPromedioGr || 0);
+  const muestra = Math.max(1, Number(tamanoMuestra || 0));
   const estandarGr = pesoEstandarEnEdad(lote.genetica, lote.edad, tabla);
   const desviacionPct = estandarGr > 0 && promedioGr > 0 ? ((promedioGr - estandarGr) / estandarGr) * 100 : null;
+  const fueraDeRangoFisico = promedioGr > 0 && (promedioGr < PESO_MIN_PLAUSIBLE_GR || promedioGr > PESO_MAX_PLAUSIBLE_GR);
+  const desviacionSevera = desviacionPct !== null && Math.abs(desviacionPct) >= UMBRAL_ALERTA_PCT;
+  const requiereConfirmacion = promedioGr > 0 && (fueraDeRangoFisico || desviacionSevera);
+
+  function actualizarPeso(v: string) {
+    setPesoPromedioGr(v);
+    setConfirmando(false); // cualquier cambio al valor invalida una confirmación previa
+  }
 
   async function guardar() {
-    if (!pesoMuestraGr || !tamanoMuestra) return;
+    if (!pesoPromedioGr) return;
+    if (requiereConfirmacion && !confirmando) {
+      setConfirmando(true);
+      return;
+    }
     setEnviando(true);
+    const totalGr = (promedioGr * muestra).toFixed(1);
     const r = await enviarOEncolar({
       etiqueta: `Pesaje — Lote ${lote.codigo}`,
       endpoint: "/api/pollo/eventos",
-      campos: { tipo: "pesaje", loteId: lote.id, fecha: hoyISO(), edadDias: String(lote.edad), pesoMuestraGr, tamanoMuestra, creadoEnDispositivo: new Date().toISOString() },
+      campos: { tipo: "pesaje", loteId: lote.id, fecha: hoyISO(), edadDias: String(lote.edad), pesoMuestraGr: totalGr, tamanoMuestra, creadoEnDispositivo: new Date().toISOString() },
       fotos: [],
     });
     setEnviando(false);
+    setConfirmando(false);
     onListo(r);
   }
 
   return (
     <div className="flex flex-col gap-4">
       <EncabezadoForm titulo="Captura de Pesaje" subtitulo={`Lote ${lote.codigo} · día ${lote.edad} · muestra semanal`} onCancelar={onCancelar} />
-      <Campo label="Cantidad de aves pesadas (muestra)"><input inputMode="numeric" className={campoInput} value={tamanoMuestra} onChange={(e) => setTamanoMuestra(e.target.value)} /></Campo>
-      <Campo label="Peso total de la muestra (gramos)"><input inputMode="numeric" className={campoInput} value={pesoMuestraGr} onChange={(e) => setPesoMuestraGr(e.target.value)} placeholder="0" /></Campo>
+      <Campo label="Peso promedio del ave (gramos)">
+        <input inputMode="numeric" className={campoInput} value={pesoPromedioGr} onChange={(e) => actualizarPeso(e.target.value)} placeholder="0" />
+      </Campo>
+      <Campo label="Cantidad de aves en la muestra (opcional, solo para registro)">
+        <input inputMode="numeric" className={campoInput} value={tamanoMuestra} onChange={(e) => setTamanoMuestra(e.target.value)} />
+      </Campo>
+
       {promedioGr > 0 && (
-        <div className={`rounded-xl px-3 py-2 text-sm ${desviacionPct !== null && desviacionPct < -5 ? "bg-orange-dim text-orange" : "bg-panel-2 text-text-muted"}`}>
-          Peso promedio: {promedioGr.toFixed(0)} g · Estándar día {lote.edad}: {estandarGr.toFixed(0)} g
-          {desviacionPct !== null && (
-            <>
-              {" "}· Desviación: {desviacionPct >= 0 ? "+" : ""}{desviacionPct.toFixed(1)}%
-              {desviacionPct < -5 && " — por debajo de la meta, revisar consumo/sanidad"}
-            </>
+        <div className={`rounded-xl px-3 py-2 text-sm ${requiereConfirmacion ? "border border-danger bg-[var(--danger-dim)] text-danger" : desviacionPct !== null && desviacionPct < -5 ? "bg-orange-dim text-orange" : "bg-panel-2 text-text-muted"}`}>
+          <p>
+            Peso promedio: {promedioGr.toFixed(0)} g · Estándar día {lote.edad}: {estandarGr.toFixed(0)} g
+            {desviacionPct !== null && (
+              <> · Desviación: {desviacionPct >= 0 ? "+" : ""}{desviacionPct.toFixed(1)}%</>
+            )}
+          </p>
+          {fueraDeRangoFisico && (
+            <p className="mt-1 font-semibold">
+              Ese peso no es posible para un pollo de engorde. Revisá: ¿escribiste el PROMEDIO por ave (no el total ni en kilos)?
+            </p>
+          )}
+          {!fueraDeRangoFisico && desviacionSevera && (
+            <p className="mt-1 font-semibold">
+              Está muy lejos del estándar de ese día. Verificá la báscula y que el número sea el promedio por ave antes de guardar.
+            </p>
           )}
         </div>
       )}
-      <Boton onClick={guardar} disabled={enviando || !pesoMuestraGr || !tamanoMuestra}>{enviando ? "Guardando…" : "Guardar Pesaje"}</Boton>
+
+      {requiereConfirmacion && confirmando && (
+        <p className="text-xs text-text-muted">Tocá "Confirmar y guardar" de nuevo para guardar este dato tal como está.</p>
+      )}
+
+      <Boton onClick={guardar} disabled={enviando || !pesoPromedioGr} variant={requiereConfirmacion ? "danger" : "primary"}>
+        {enviando ? "Guardando…" : requiereConfirmacion ? (confirmando ? "Confirmar y guardar" : "Revisar antes de guardar") : "Guardar Pesaje"}
+      </Boton>
     </div>
   );
 }
