@@ -497,13 +497,33 @@ function FormApertura({ galponId, onListo, onCancelar }: { galponId: string; onL
   );
 }
 
+// Un solo día de mortalidad por encima de esta fracción del saldo actual
+// es una señal fuerte de fat-finger (un cero de más) más que un evento
+// sanitario real — se deja guardar, pero con confirmación explícita.
+const UMBRAL_MORTALIDAD_DIARIA_PCT = 5;
+
 function FormMortalidad({ lote, onListo, onCancelar }: { lote: LoteActivoUi; onListo: (r: "servidor" | "local") => void; onCancelar: () => void }) {
   const [cantidad, setCantidad] = useState("");
   const [causa, setCausa] = useState(CAUSAS[0].value);
+  const [confirmando, setConfirmando] = useState(false);
   const [enviando, setEnviando] = useState(false);
 
+  const numCantidad = Number(cantidad || 0);
+  const excedeSaldo = numCantidad > lote.saldo; // imposible: no puede morir más de lo que hay vivo — se bloquea, no se pide confirmar
+  const pctDelSaldo = lote.saldo > 0 ? (numCantidad / lote.saldo) * 100 : 0;
+  const esPicoInusual = !excedeSaldo && numCantidad > 0 && pctDelSaldo >= UMBRAL_MORTALIDAD_DIARIA_PCT;
+
+  function actualizarCantidad(v: string) {
+    setCantidad(v);
+    setConfirmando(false);
+  }
+
   async function guardar() {
-    if (!cantidad) return;
+    if (!cantidad || excedeSaldo) return;
+    if (esPicoInusual && !confirmando) {
+      setConfirmando(true);
+      return;
+    }
     setEnviando(true);
     const r = await enviarOEncolar({
       etiqueta: `Mortalidad — Lote ${lote.codigo}`,
@@ -512,20 +532,34 @@ function FormMortalidad({ lote, onListo, onCancelar }: { lote: LoteActivoUi; onL
       fotos: [],
     });
     setEnviando(false);
+    setConfirmando(false);
     onListo(r);
   }
 
   return (
     <div className="flex flex-col gap-4">
       <EncabezadoForm titulo="Captura de Mortalidad" subtitulo={`Lote ${lote.codigo} · día ${lote.edad} · saldo actual ${fmt(lote.saldo)} aves`} onCancelar={onCancelar} />
-      <Campo label="Cantidad de aves muertas hoy"><input inputMode="numeric" className={campoInput} value={cantidad} onChange={(e) => setCantidad(e.target.value)} placeholder="0" /></Campo>
+      <Campo label="Cantidad de aves muertas hoy"><input inputMode="numeric" className={campoInput} value={cantidad} onChange={(e) => actualizarCantidad(e.target.value)} placeholder="0" /></Campo>
       <Campo label="Causa principal">
         <select className={campoInput} value={causa} onChange={(e) => setCausa(e.target.value)}>
           {CAUSAS.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
         </select>
       </Campo>
-      {cantidad && <p className="text-xs text-text-muted">Saldo de aves (auto): {fmt(lote.saldo - Number(cantidad))}</p>}
-      <Boton onClick={guardar} disabled={enviando || !cantidad}>{enviando ? "Guardando…" : "Guardar Mortalidad"}</Boton>
+      {excedeSaldo && (
+        <p className="rounded-xl border border-danger bg-[var(--danger-dim)] px-3 py-2 text-sm font-semibold text-danger">
+          No puede ser mayor al saldo actual ({fmt(lote.saldo)} aves). Revisá el número.
+        </p>
+      )}
+      {!excedeSaldo && esPicoInusual && (
+        <p className="rounded-xl border border-danger bg-[var(--danger-dim)] px-3 py-2 text-sm font-semibold text-danger">
+          Es un salto grande para un solo día ({pctDelSaldo.toFixed(1)}% del saldo). Verificá el número antes de confirmar.
+        </p>
+      )}
+      {cantidad && !excedeSaldo && <p className="text-xs text-text-muted">Saldo de aves (auto): {fmt(lote.saldo - numCantidad)}</p>}
+      {esPicoInusual && confirmando && !excedeSaldo && <p className="text-xs text-text-muted">Tocá "Confirmar y guardar" de nuevo para guardarlo tal como está.</p>}
+      <Boton onClick={guardar} disabled={enviando || !cantidad || excedeSaldo} variant={esPicoInusual ? "danger" : "primary"}>
+        {enviando ? "Guardando…" : esPicoInusual ? (confirmando ? "Confirmar y guardar" : "Revisar antes de guardar") : "Guardar Mortalidad"}
+      </Boton>
     </div>
   );
 }
@@ -535,8 +569,11 @@ function FormDescarte({ lote, onListo, onCancelar }: { lote: LoteActivoUi; onLis
   const [motivo, setMotivo] = useState("");
   const [enviando, setEnviando] = useState(false);
 
+  const numCantidad = Number(cantidad || 0);
+  const excedeSaldo = numCantidad > lote.saldo;
+
   async function guardar() {
-    if (!cantidad) return;
+    if (!cantidad || excedeSaldo) return;
     setEnviando(true);
     const r = await enviarOEncolar({
       etiqueta: `Descarte — Lote ${lote.codigo}`,
@@ -550,10 +587,15 @@ function FormDescarte({ lote, onListo, onCancelar }: { lote: LoteActivoUi; onLis
 
   return (
     <div className="flex flex-col gap-4">
-      <EncabezadoForm titulo="Captura de Descarte" subtitulo={`Lote ${lote.codigo} · día ${lote.edad}`} onCancelar={onCancelar} />
+      <EncabezadoForm titulo="Captura de Descarte" subtitulo={`Lote ${lote.codigo} · día ${lote.edad} · saldo actual ${fmt(lote.saldo)} aves`} onCancelar={onCancelar} />
       <Campo label="Cantidad de aves descartadas"><input inputMode="numeric" className={campoInput} value={cantidad} onChange={(e) => setCantidad(e.target.value)} placeholder="0" /></Campo>
       <Campo label="Motivo"><textarea className={campoInput} rows={2} value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder="Retraso de crecimiento, lesión, etc." /></Campo>
-      <Boton onClick={guardar} disabled={enviando || !cantidad}>{enviando ? "Guardando…" : "Guardar Descarte"}</Boton>
+      {excedeSaldo && (
+        <p className="rounded-xl border border-danger bg-[var(--danger-dim)] px-3 py-2 text-sm font-semibold text-danger">
+          No puede ser mayor al saldo actual ({fmt(lote.saldo)} aves). Revisá el número.
+        </p>
+      )}
+      <Boton onClick={guardar} disabled={enviando || !cantidad || excedeSaldo}>{enviando ? "Guardando…" : "Guardar Descarte"}</Boton>
     </div>
   );
 }
