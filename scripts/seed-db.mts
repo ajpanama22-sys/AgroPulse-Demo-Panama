@@ -487,7 +487,7 @@ async function main() {
 
   console.log("Alertas WOW (inventario crítico + mortalidad fuera de meta)...");
   await db.insert(schema.alertas).values([
-    { tipo: "inventario_critico", severidad: "alta", titulo: "Alcance de inventario — MaÞ�", detalle: "4 días restantes (por debajo del mínimo de 7 días)", entidadRef: "MaÞ�" },
+    { tipo: "inventario_critico", severidad: "alta", titulo: "Alcance de inventario — Maíz", detalle: "4 días restantes (por debajo del mínimo de 7 días)", entidadRef: "Maíz" },
     { tipo: "inventario_critico", severidad: "alta", titulo: "Alcance de inventario — Soya", detalle: "3 días restantes (por debajo del mínimo de 7 días)", entidadRef: "Soya" },
     { tipo: "inventario_critico", severidad: "alta", titulo: "Alcance de inventario — Aceite", detalle: "2 días restantes — el más crítico de los 3 insumos (mínimo 7 días)", entidadRef: "Aceite" },
     { tipo: "mortalidad_alta", severidad: "media", titulo: "Mortalidad sobre meta — Pollo Engorde", detalle: "7.8% causado vs. 5.2% meta (+50%) en Chiriquí — Engorde", entidadRef: ubic.polloEngorde.id },
