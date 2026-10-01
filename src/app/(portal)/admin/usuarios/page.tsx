@@ -13,7 +13,7 @@ export default async function UsuariosPage() {
   return (
     <div>
       <PageHeader title="Usuarios" subtitle="Roles y accesos — campo, gerencial y administración" />
-      <div className="px-8 py-6">
+      <div className="py-1">
         <UsuariosClient
           usuarios={lista.map((u) => ({ id: u.id, nombre: u.nombre, email: u.email, rol: u.rol, activo: u.activo, empresaId: u.empresaId, ubicacionId: u.ubicacionId }))}
           empresas={empresasAll.map((e) => ({ id: e.id, nombre: e.nombre }))}

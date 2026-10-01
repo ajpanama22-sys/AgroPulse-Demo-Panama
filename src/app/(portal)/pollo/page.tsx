@@ -2,7 +2,6 @@ import { eq, inArray } from "drizzle-orm";
 import { db } from "@/lib/db/client";
 import { empresas, ubicaciones, lotesPollo, loteEventosPollo, estandarGenetico, conciliacionesPlanta, evidenciasPollo } from "@/lib/db/schema";
 import { Card, PageHeader, Badge, StatTile } from "@/components/ui";
-import ProductIcon3D from "@/components/ProductIcon3D";
 import GraficoCumplimiento from "@/components/pollo/GraficoCumplimiento";
 import GraficoPesoRealVsEstandar from "@/components/pollo/GraficoPesoRealVsEstandar";
 import EstandarGeneticoTable from "@/components/pollo/EstandarGeneticoTable";
@@ -136,14 +135,10 @@ export default async function PolloPage({ searchParams }: { searchParams: Promis
       <PageHeader
         title="Pollo de Engorde — El Dorado"
         subtitle="Agropecuaria El Dorado · División de Grupo JHS"
-        action={
-          <div className="shrink-0">
-            <ProductIcon3D tipo="pollo" size={56} />
-          </div>
-        }
+        eyebrow="POLLO / DETALLE · AGROPECUARIA EL DORADO"
       />
 
-      <div className="border-b border-border px-8">
+      <div className="mb-5 border-b border-border">
         <nav className="flex gap-1">
           {TABS.map((t) => (
             <a
@@ -159,7 +154,7 @@ export default async function PolloPage({ searchParams }: { searchParams: Promis
         </nav>
       </div>
 
-      <div className="px-8 py-6">
+      <div className="py-1">
         {!datos && (
           <Card>
             <p className="text-sm text-text-muted">

@@ -29,10 +29,10 @@ export const theme = {
 // ABA no tienen sub-marca pública, así que reciben un color funcional
 // propio para poder diferenciarse en tablas/gráficos.
 export const unidadColor: Record<string, string> = {
-  huevos: theme.orange,
-  pollo: theme.blue,
-  cerdo: "#8a3b5c",
-  aba: "#4f6b5c",
+  huevos: "#ef7d1e",
+  pollo: "#2f7fd0",
+  cerdo: "#b0547c",
+  aba: "#5f9a7a",
 };
 
 export function pageWrapStyle(): React.CSSProperties {

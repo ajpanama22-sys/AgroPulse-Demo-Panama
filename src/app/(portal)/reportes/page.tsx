@@ -65,7 +65,7 @@ export default async function ReportesPage({ searchParams }: { searchParams: Pro
   return (
     <div>
       <PageHeader title="Reportes" subtitle="Excel para trabajar los datos y PDF ejecutivo con gráficas 3D de donas y barras — cubre todo lo que maneja el sistema." />
-      <div className="grid grid-cols-1 gap-6 px-8 py-6 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-6 py-1 lg:grid-cols-2">
         <ReportCard titulo="Financiero (EDR)" descripcion="Estado de Resultados por unidad de negocio y consolidado — detalle listo para tabla dinámica en Excel, o PDF ejecutivo con dona y barras 3D de EBITDA/ingresos.">
           <form method="get" className="mb-4 flex flex-wrap items-end gap-3">
             <label className="flex flex-col gap-1">

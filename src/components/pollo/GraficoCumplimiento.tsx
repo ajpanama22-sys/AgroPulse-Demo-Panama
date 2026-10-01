@@ -1,30 +1,16 @@
 "use client";
 
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell, ResponsiveContainer, ReferenceLine } from "recharts";
-import { theme } from "@/lib/theme";
+import { Bar3D, pos, neg, warn } from "@/components/charts";
 import type { IndicadorComparado } from "@/lib/analisis-pollo";
 
 // "% Cumplimiento por indicador" — Ejecutado vs. Proyectado de los 8
 // indicadores productivos del dashboard. Verde >=95%, naranja 90-94%, rojo
 // <90% — mismo umbral que el semáforo de "Seguimiento de Lotes".
+// Presentación: kit de gráficas de PharmaLab AI.
 export default function GraficoCumplimiento({ indicadores }: { indicadores: IndicadorComparado[] }) {
-  const data = indicadores.map((i) => ({ nombre: i.etiqueta, pct: Math.round(i.pctCumplimiento) }));
-  const colorDe = (pct: number) => (pct >= 95 ? theme.success : pct >= 90 ? theme.orange : theme.danger);
-
-  return (
-    <ResponsiveContainer width="100%" height={260}>
-      <BarChart data={data} margin={{ top: 16, right: 8, left: -16, bottom: 0 }}>
-        <CartesianGrid vertical={false} stroke={theme.border} />
-        <XAxis dataKey="nombre" tick={{ fontSize: 11, fill: theme.inkSoft }} interval={0} angle={-12} textAnchor="end" height={50} />
-        <YAxis tick={{ fontSize: 11, fill: theme.inkSoft }} domain={[0, 120]} tickFormatter={(v) => `${v}%`} />
-        <ReferenceLine y={100} stroke={theme.border} />
-        <Tooltip formatter={((v: unknown) => [`${v}%`, "% Cumplimiento"]) as any} contentStyle={{ borderRadius: 10, fontSize: 12 }} />
-        <Bar dataKey="pct" radius={[6, 6, 0, 0]} label={{ position: "top", fontSize: 11, fill: theme.ink, formatter: ((v: unknown) => `${v}%`) as any }}>
-          {data.map((d, i) => (
-            <Cell key={i} fill={colorDe(d.pct)} />
-          ))}
-        </Bar>
-      </BarChart>
-    </ResponsiveContainer>
-  );
+  const items = indicadores.map((i) => {
+    const pct = Math.round(i.pctCumplimiento);
+    return { label: i.etiqueta, value: pct, color: pct >= 95 ? pos : pct >= 90 ? warn : neg, note: `Proyectado ${i.proyectado.toLocaleString("es-PA", { maximumFractionDigits: 2 })} · Ejecutado ${i.ejecutado.toLocaleString("es-PA", { maximumFractionDigits: 2 })} ${i.unidad}` };
+  });
+  return <Bar3D items={items} format={(v) => `${v ?? 0} %`} axisFormat={(v) => `${v} %`} height={280} label="% Cumplimiento por indicador" />;
 }

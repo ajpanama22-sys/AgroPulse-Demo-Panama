@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 /*
- * Identidad visual AgroPulse para Agroindustrias del Istmo — construida
+ * (Histórico) Identidad visual AgroPulse para Agroindustrias del Istmo — construida
  * sobre los colores corporativos del cliente: charcoal oscuro de su
  * cabecera + naranja vivo como acento primario, azul como acento
  * secundario. Fondo crema
@@ -10,37 +10,42 @@
  * ZiMPLIFIKA. El verde queda solo como semántica de "positivo/meta
  * cumplida", nunca como color de marca.
  */
-:root {
-  --bg: #f5f2ec;
-  --bg-elevated: #ffffff;
-  --panel: #ffffff;
-  --panel-2: #efe9dc;
-  --border: #e4dfd3;
-  --border-strong: #d3ccb9;
+/*
+ * Los tokens de color de AgroPulse ahora salen de la capa premium
+ * (premium.css, misma presentación de PharmaLab AI). Aquí solo se
+ * re-exponen con los nombres que ya usan las utilidades de Tailwind en
+ * las pantallas existentes, para que hereden el tema claro/oscuro y el
+ * acento de cada línea sin reescribirlas.
+ */
+:root,
+[data-theme],
+[data-modal] {
+  --border: var(--line);
+  --border-strong: color-mix(in srgb, var(--line) 70%, var(--muted));
+  --bg-elevated: var(--panel);
 
-  --text: #35342f;
-  --text-muted: #736f64;
-  --text-faint: #a29c8c;
+  --text: var(--ink);
+  --text-muted: var(--muted);
+  --text-faint: color-mix(in srgb, var(--muted) 70%, var(--bg));
 
-  --orange: #ef7d1e;
-  --orange-bright: #ff9640;
-  --orange-dim: rgba(239, 125, 30, 0.12);
+  --orange: var(--accent);
+  --orange-bright: color-mix(in srgb, var(--accent) 80%, #fff);
+  --orange-dim: var(--accent-soft);
 
-  --charcoal: #3c3c3a;
-  --charcoal-bright: #57564f;
+  --charcoal: var(--ink);
+  --charcoal-bright: var(--muted);
 
-  --blue: #1d5a96;
-  --blue-dim: rgba(29, 90, 150, 0.12);
+  --blue: #2f7fd0;
+  --blue-dim: rgba(47, 127, 208, 0.14);
 
-  --accent: #ef7d1e;
-  --success: #2f7d4f;
-  --success-dim: rgba(47, 125, 79, 0.14);
-  --danger: #c23b3b;
-  --danger-dim: rgba(194, 59, 59, 0.12);
-  --warning: #ef7d1e;
-  --warning-dim: #fdf0e0;
+  --success: #2e9e6a;
+  --success-dim: rgba(46, 158, 106, 0.14);
+  --danger: #d0544f;
+  --danger-dim: rgba(208, 84, 79, 0.13);
+  --warning: #d9952b;
+  --warning-dim: rgba(217, 149, 43, 0.14);
 
-  --shadow-elevated: 0 20px 50px -24px rgba(60, 60, 58, 0.28);
+  --shadow-elevated: var(--shadow-2);
 }
 
 @theme inline {
@@ -63,7 +68,7 @@
   --color-danger: var(--danger);
   --color-warning: var(--warning);
   --font-sans: var(--font-inter);
-  --font-display: var(--font-manrope);
+  --font-display: var(--font-jakarta);
 }
 
 * {
@@ -73,11 +78,14 @@
 html {
   color-scheme: light;
 }
+html:has([data-theme="dark"]) {
+  color-scheme: dark;
+}
 
 body {
   background: var(--bg);
   color: var(--text);
-  font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--font-inter), "Inter", ui-sans-serif, system-ui, sans-serif;
   letter-spacing: -0.008em;
 }
 

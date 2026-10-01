@@ -1,8 +1,7 @@
 import { Card, PageHeader, Badge } from "@/components/ui";
 import { unidadColor } from "@/lib/theme";
 import { etiquetaBucket, variacion, agregarPorBucket, sumarRango, totalConceptoRango, CONCEPTOS_CLAVE } from "@/lib/analisis";
-import Donut3D from "@/components/Donut3D";
-import OrbitBars3D from "@/components/OrbitBars3D";
+import AnalisisCharts from "@/components/AnalisisCharts";
 import AnalisisControls from "@/components/AnalisisControls";
 import AnalisisReportButtons from "@/components/AnalisisReportButtons";
 
@@ -57,7 +56,7 @@ export default async function AnalisisPage({ searchParams }: { searchParams: Pro
         subtitle="EBITDA, ingresos y utilidad neta — comparación entre dos rangos de fecha, con 2 años de historia"
         action={<AnalisisReportButtons desdeA={desdeA} hastaA={hastaA} desdeB={desdeB} hastaB={hastaB} />}
       />
-      <div className="px-8 py-6">
+      <div className="py-1">
         <AnalisisControls desdeA={desdeA} hastaA={hastaA} desdeB={desdeB} hastaB={hastaB} bucketsDisponibles={bucketsDisponibles} />
 
         <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -76,38 +75,7 @@ export default async function AnalisisPage({ searchParams }: { searchParams: Pro
           })}
         </div>
 
-        <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
-          <Card>
-            <p className="text-sm font-semibold text-charcoal">Composición de EBITDA por unidad — {etiquetaRango(desdeA, hastaA)}</p>
-            <div className="flex justify-center">
-              <Donut3D data={donutData} />
-            </div>
-            <div className="flex justify-center gap-4">
-              {donutData.map((d) => (
-                <span key={d.label} className="flex items-center gap-1.5 text-xs text-text-muted">
-                  <span className="h-2 w-2 rounded-full" style={{ background: d.color }} /> {d.label} · {fmtMoney(d.value)}
-                </span>
-              ))}
-            </div>
-          </Card>
-          <Card>
-            <p className="text-sm font-semibold text-charcoal">EBITDA por unidad — Período A vs. Período B</p>
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <p className="text-center text-xs text-text-faint">{etiquetaRango(desdeA, hastaA)}</p>
-                <div style={{ height: 200 }}>
-                  <OrbitBars3D data={orbitA} />
-                </div>
-              </div>
-              <div>
-                <p className="text-center text-xs text-text-faint">{etiquetaRango(desdeB, hastaB)}</p>
-                <div style={{ height: 200 }}>
-                  <OrbitBars3D data={orbitB} />
-                </div>
-              </div>
-            </div>
-          </Card>
-        </div>
+        <AnalisisCharts donut={donutData} a={orbitA} b={orbitB} etiquetaA={etiquetaRango(desdeA, hastaA)} etiquetaB={etiquetaRango(desdeB, hastaB)} />
 
         <Card className="mt-6 overflow-x-auto">
           <p className="mb-3 text-sm font-semibold text-charcoal">Detalle numérico</p>

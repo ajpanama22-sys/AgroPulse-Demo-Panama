@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { unidadColor } from "@/lib/theme";
-import ProductIcon3D from "@/components/ProductIcon3D";
+import Icon from "@/components/icons";
 import InstallPwaButton from "@/components/InstallPwaButton";
 import SignOutButton from "@/components/SignOutButton";
 import type { IndicadorComparado } from "@/lib/analisis-pollo";
@@ -148,7 +148,9 @@ function ExecTile({ accent, label, value }: { accent: string; label: string; val
     <div className="relative overflow-hidden rounded-2xl border border-border bg-panel p-3">
       <div className="absolute inset-x-0 top-0 h-1" style={{ background: accent }} />
       <div className="flex items-center gap-2">
-        <ProductIcon3D tipo="pollo" size={44} />
+        <span className="lineIcon" style={{ position: "static", width: 40, height: 40, ["--lc" as string]: accent }}>
+          <Icon name="bird" size={20} />
+        </span>
         <div className="min-w-0">
           <p className="truncate text-[10px] font-semibold uppercase tracking-wide text-text-faint">{label}</p>
           <p className="truncate font-display text-lg font-bold text-charcoal">{value}</p>

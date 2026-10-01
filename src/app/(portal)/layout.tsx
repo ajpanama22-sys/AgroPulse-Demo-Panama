@@ -1,12 +1,15 @@
 import { auth } from "@/lib/auth";
-import Sidebar from "@/components/Sidebar";
+import AppShell from "@/components/shell/AppShell";
+import { lineasPermitidas } from "@/lib/lineas-config";
+import { unidadDelUsuario } from "@/lib/lineas-data";
 
 export default async function PortalLayout({ children }: { children: React.ReactNode }) {
   const session = await auth();
+  const rol = session?.user.rol ?? "admin";
+  const permitidas = lineasPermitidas(rol, await unidadDelUsuario(session?.user.empresaId));
   return (
-    <div className="flex min-h-screen">
-      <Sidebar nombre={session?.user.name ?? "Admin"} />
-      <div className="flex-1 overflow-x-hidden">{children}</div>
-    </div>
+    <AppShell nombre={session?.user.name ?? "Admin"} rol={rol} permitidas={permitidas}>
+      {children}
+    </AppShell>
   );
 }

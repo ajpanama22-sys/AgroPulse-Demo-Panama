@@ -33,7 +33,7 @@ export default async function AuditoriaPage() {
   return (
     <div>
       <PageHeader title="Auditoría" subtitle={`Cumplimiento de captura diaria (${FECHA_REPORTE}) y bitácora de acciones`} />
-      <div className="px-8 py-6">
+      <div className="py-1">
         <Card className="overflow-x-auto">
           <p className="mb-3 text-sm font-semibold text-charcoal">Reporte diario de cumplimiento por dispositivo/ubicación</p>
           <table className="w-full min-w-[640px] border-collapse text-sm">

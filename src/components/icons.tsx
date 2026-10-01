@@ -1,0 +1,25 @@
+"use client";
+const P:any={
+ factory:'M3 21V10l6 4V10l6 4V6l6 3v12H3zm4-4h2m4 0h2',
+ pulse:'M3 12h4l2-6 4 12 2-6h6',
+ box:'M3 7l9-4 9 4-9 4-9-4zm0 0v10l9 4 9-4V7M12 11v10',
+ chat:'M4 5h16v11H8l-4 4V5zm4 5h8M8 13h5',
+ report:'M6 3h9l4 4v14H6V3zm9 0v4h4M9 17v-4m3 4v-7m3 7v-2',
+ chart:'M4 20V4m0 16h16M8 16l3-4 3 2 5-7',
+ grid:'M4 4h7v7H4zm9 0h7v7h-7zM4 13h7v7H4zm9 0h7v7h-7z',
+ users:'M9 11a4 4 0 100-8 4 4 0 000 8zm-6 10a6 6 0 0112 0M17 11a3 3 0 100-6m4 16a5 5 0 00-4-5',
+ coin:'M12 3a9 9 0 100 18 9 9 0 000-18zm3 6.5c0-1.4-1.3-2.5-3-2.5s-3 1-3 2.3c0 3.2 6 1.8 6 5 0 1.4-1.4 2.7-3 2.7s-3-1.1-3-2.5M12 5v2m0 10v2',
+ flask:'M9 3h6M10 3v6l-5 9a2 2 0 002 3h10a2 2 0 002-3l-5-9V3M7.5 15h9',
+ logout:'M15 4h4v16h-4M10 8l-4 4 4 4M6 12h10',
+ moon:'M20 14.5A8 8 0 019.5 4a8 8 0 1010.5 10.5z',
+ sun:'M12 4V2m0 20v-2m8-8h2M2 12h2m13.7-5.7l1.4-1.4M4.9 19.1l1.4-1.4m0-11.4L4.9 4.9m14.2 14.2l-1.4-1.4M12 7a5 5 0 100 10 5 5 0 000-10z',
+ menu:'M4 6h16M4 12h16M4 18h16',
+ alert:'M12 3l10 18H2L12 3zm0 6v5m0 3v.5',
+ egg:'M12 3c-3.6 0-6.5 5.2-6.5 10a6.5 6.5 0 0013 0C18.5 8.2 15.6 3 12 3z',
+ bird:'M4 14c0-4 3-7 7-7 1.5 0 2.6.4 3.5 1L19 6l-1.5 4c.3.6.5 1.3.5 2 0 4-3 7-7 7H8l-3 2 1-3c-1.3-1-2-2.3-2-4zm9-4h.01',
+ pig:'M5 11a7 6 0 0114 0v3a4 4 0 01-4 4H9a4 4 0 01-4-4v-3zm-2 1h2m14 0h2M8 18v3m8-3v3M9.5 10h.01M17 6l1-3',
+ shield:'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6l8-3zm-3 9l2 2 4-4',
+ building:'M4 21V5l8-2v18M12 7l8 2v12M7 8h2m-2 4h2m-2 4h2m6-4h2m-2 4h2M2 21h20',
+ layers:'M12 3l9 5-9 5-9-5 9-5zm-9 9l9 5 9-5M3 16l9 5 9-5',
+};
+export default function Icon({name,size=20}:{name:string;size?:number}){return <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={P[name]??P.grid}/></svg>;}

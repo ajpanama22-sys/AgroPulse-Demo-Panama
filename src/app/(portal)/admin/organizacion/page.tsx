@@ -8,7 +8,7 @@ export default async function OrganizacionPage() {
   return (
     <div>
       <PageHeader title="Organización" subtitle="Matrícula del cliente en el sistema — nombre, dirección y logo para los reportes (despliegue on-premise, un cliente por instancia)" />
-      <div className="px-8 py-6">
+      <div className="py-1">
         <OrganizacionForm org={org ? { nombre: org.nombre, direccion: org.direccion, logoUrl: org.logoUrl } : null} />
       </div>
     </div>
